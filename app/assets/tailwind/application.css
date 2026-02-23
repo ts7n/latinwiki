@@ -63,6 +63,10 @@ body::before {
   color: #000;
 }
 
+.turbo-progress-bar {
+  display: none;
+}
+
 /* MediaWiki-inspired simple, old-school styling */
 @layer components {
   .wiki-layout {
@@ -1820,23 +1824,264 @@ body::before {
   }
 }
 
+/* Mobile header - hidden on desktop */
+.wiki-mobile-header {
+  display: none;
+}
+
+.wiki-sidebar-backdrop {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .wiki-mobile-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5em;
+    padding: 0.5em 0.75em;
+    background: #f6f6f6;
+    border-bottom: 1px solid #999;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .wiki-mobile-menu-btn {
+    background: none;
+    border: none;
+    padding: 0.35em;
+    cursor: pointer;
+    color: #333;
+    display: flex;
+    align-items: center;
+  }
+
+  .wiki-mobile-header-title {
+    display: flex;
+    align-items: center;
+    gap: 0.4em;
+    text-decoration: none;
+    font-weight: bold;
+    font-size: 1em;
+    color: #e65100;
+  }
+
+  .wiki-mobile-header-logo {
+    width: 1.3em;
+    height: 1.3em;
+    border-radius: 2px;
+  }
+
+  .wiki-mobile-search-btn {
+    padding: 0.35em;
+    color: #0645ad;
+    display: flex;
+    align-items: center;
+  }
+
+  body::before {
+    display: none;
+  }
+
+  .wiki-layout {
+    flex-direction: column;
+  }
+
+  .wiki-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 200;
+    width: 80vw;
+    max-width: 20em;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+    border-right: 1px solid #999;
+  }
+
+  .wiki-sidebar-open .wiki-sidebar {
+    transform: translateX(0);
+  }
+
+  .wiki-sidebar-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 199;
+    background: rgba(0, 0, 0, 0.4);
+  }
+
+  .wiki-sidebar-open .wiki-sidebar-backdrop {
+    display: block;
+  }
+
+  .wiki-content {
+    flex-direction: column;
+    padding: 1em;
+    gap: 1.5em;
+  }
+
+  .wiki-content-main {
+    width: 100%;
+  }
+
+  .wiki-content-sidebar {
+    width: 100%;
+    position: static;
+    flex-direction: column;
+    gap: 1em;
+  }
+
+  .wiki-article {
+    max-width: 100%;
+  }
+
+  .wiki-article-title {
+    font-size: 1.5em;
+  }
+
+  .wiki-page-title {
+    font-size: 1.4em;
+  }
+
+  /* Search page */
+  .wiki-search-content {
+    padding: 1em;
+  }
+
+  .wiki-search-form {
+    max-width: 100%;
+  }
+
+  /* Edit page */
+  .wiki-edit-layout .wiki-content {
+    padding: 1em;
+  }
+
+  .wiki-edit-header {
+    flex-direction: column;
+    gap: 0.5em;
+    align-items: flex-start;
+  }
+
+  .wiki-edit-field-row {
+    flex-direction: column;
+    max-width: 100%;
+  }
+
+  .wiki-edit-input {
+    max-width: 100%;
+  }
+
+  .wiki-edit-merge-columns {
+    grid-template-columns: 1fr;
+  }
+
+  .wiki-editor-toolbar {
+    gap: 0.25em;
+    padding: 0.4em 0.5em;
+  }
+
+  .wiki-editor-btn {
+    padding: 0.35em 0.5em;
+  }
+
+  /* Diff/history pages */
+  .wiki-diff-content-area {
+    padding: 1em;
+  }
+
+  .wiki-diff-header {
+    flex-direction: column;
+    gap: 0.25em;
+    align-items: flex-start;
+  }
+
+  /* History items */
+  .wiki-history-item {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.2em;
+  }
+
+  .wiki-history-actions {
+    width: 100%;
+    margin-left: 0;
+    margin-top: 0.2em;
+  }
+
+  /* Merge page */
+  .wiki-merge-panels {
+    grid-template-columns: 1fr;
+  }
+
+  /* Cards */
+  .wiki-card {
+    padding: 0.85em 1em;
+  }
+
+  /* Link preview */
+  .wiki-link-preview {
+    max-width: 80vw;
+  }
+
+  /* Link modal */
+  .wiki-link-modal-box {
+    width: 90vw;
+    min-width: 0;
+  }
+
+  /* User section in sidebar */
+  .wiki-user-menu {
+    bottom: auto;
+    top: 100%;
+    margin-top: 0.25em;
+    margin-bottom: 0;
+  }
+
+  /* Flash messages */
+  .wiki-flash {
+    max-width: calc(100vw - 2em);
+    font-size: 0.9em;
+  }
+
+  /* Permission missing */
+  .wiki-permission-missing {
+    padding: 1.5em;
+  }
+}
+
 @media print {
   .wiki-sidebar,
-  .wiki-content-sidebar {
+  .wiki-content-sidebar,
+  .wiki-mobile-header,
+  .wiki-sidebar-backdrop {
     display: none !important;
   }
 
   .wiki-layout {
     display: block;
+    width: 100%;
+    max-width: 100%;
   }
 
   .wiki-content {
     display: block;
     padding: 0;
+    width: 100%;
+    max-width: 100%;
   }
 
   .wiki-content-main {
-    max-width: none;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .wiki-article {
+    width: 100%;
+    max-width: 100%;
   }
 
   .wiki-article a {

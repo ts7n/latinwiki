@@ -25,9 +25,31 @@
     <%# Includes all stylesheet files in app/assets/stylesheets %>
     <%= stylesheet_link_tag :app, "data-turbo-track": "reload" %>
     <%= javascript_importmap_tags %>
+    <script>
+      document.addEventListener("turbo:before-visit", function() {
+        document.body.classList.remove("wiki-sidebar-open");
+      });
+    </script>
   </head>
 
   <body>
+    <header class="wiki-mobile-header">
+      <button type="button" class="wiki-mobile-menu-btn" aria-label="Open menu" onclick="document.body.classList.toggle('wiki-sidebar-open')">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <a href="/" class="wiki-mobile-header-title">
+        <img src="/icon.png" class="wiki-mobile-header-logo" alt="">
+        <span>LatinWiki</span>
+      </a>
+      <% if current_user %>
+        <%= link_to search_path, class: "wiki-mobile-search-btn", aria: { label: "Search" } do %>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <% end %>
+      <% else %>
+        <span></span>
+      <% end %>
+    </header>
+    <div class="wiki-sidebar-backdrop" onclick="document.body.classList.remove('wiki-sidebar-open')"></div>
     <% if flash[:alert].present? %>
       <div class="wiki-flash wiki-flash--alert" role="alert">
         <span><%= flash[:alert] %></span>
