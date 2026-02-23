@@ -13,6 +13,7 @@ Rails.application.routes.draw do
   get "history", to: "pages#history", as: :history_doc
   get "search", to: "search#index", as: :search
   get "api/link_preview", to: "link_previews#show"
+  delete "*path", to: "pages#destroy"
   patch "*path", to: "pages#update"
   get "*path", to: "pages#show", as: :doc
 end

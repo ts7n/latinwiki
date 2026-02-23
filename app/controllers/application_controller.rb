@@ -1,13 +1,21 @@
 class ApplicationController < ActionController::Base
   # Only allow modern browsers supporting webp images, web push, badges, import maps, CSS nesting, and CSS :has.
   allow_browser versions: :modern
-  helper_method :current_user, :pages_for_sidebar, :wiki_sections, :wiki_createable_sections
+  helper_method :current_user, :admin?, :can_create_page?, :pages_for_sidebar, :wiki_sections, :wiki_createable_sections
 
   # Changes to the importmap will invalidate the etag for HTML responses
   stale_when_importmap_changes
 
   def current_user
     @current_user ||= User.find_by(id: session[:user_id])
+  end
+
+  def admin?
+    current_user&.admin?
+  end
+
+  def can_create_page?
+    admin? || current_user&.email&.end_with?("@latinschool.org")
   end
 
   def wiki_sections

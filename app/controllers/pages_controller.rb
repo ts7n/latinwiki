@@ -4,7 +4,8 @@ require "ostruct"
 
 class PagesController < ApplicationController
   before_action :skip_set_page_for_new, only: [ :edit ]
-  before_action :set_page, only: [ :show, :edit, :update, :diff, :history ]
+  before_action :set_page, only: [ :show, :edit, :update, :diff, :history, :destroy ]
+  after_action :log_audit, only: [ :create, :update, :destroy ]
 
   def show
     @page = Page.includes(:coordinators).find(@page.id) if @page.is_a?(Page) && @page.id
@@ -23,6 +24,10 @@ class PagesController < ApplicationController
       return
     end
     if @creating
+      unless can_create_page?
+        redirect_to root_path
+        return
+      end
       @content_html = ""
       @pages_for_sidebar = pages_for_sidebar
       return
@@ -98,8 +103,8 @@ class PagesController < ApplicationController
   end
 
   def create
-    unless current_user
-      redirect_to edit_doc_path(new: "1"), alert: "Sign in to create a page."
+    unless can_create_page?
+      redirect_to root_path
       return
     end
     section_slug = params[:page][:section].presence
@@ -138,6 +143,8 @@ class PagesController < ApplicationController
     page = Page.new(title: title, slug: slug, content: content, parent: parent)
     page.rationale = rationale
     if page.save
+      @created_page_path = page.path
+      @created_page_title = page.title
       redirect_to doc_path(path: page.path), notice: "Page published.", status: :see_other
     else
       @creating = true
@@ -181,6 +188,19 @@ class PagesController < ApplicationController
     else
       redirect_to doc_path(path: @page.path), alert: "Cannot edit file-based pages."
     end
+  end
+
+  def destroy
+    unless admin?
+      redirect_to root_path
+      return
+    end
+    unless @page.is_a?(Page)
+      redirect_to root_path, alert: "Cannot delete file-based pages."
+      return
+    end
+    @page.destroy
+    redirect_to root_path, notice: "Page "#{@page.title}" deleted.", status: :see_other
   end
 
   private
@@ -249,6 +269,30 @@ class PagesController < ApplicationController
       "rationale" => params[:page][:rationale]
     }
     redirect_to edit_doc_path(helpers.edit_doc_query(@page.path)), status: :see_other
+  end
+
+  def log_audit
+    return unless current_user
+    return unless response.redirect? || response.successful?
+
+    page = @page.is_a?(Page) ? @page : nil
+    return unless page || action_name == "create"
+
+    metadata = {}
+    rationale = params.dig(:page, :rationale).to_s.strip.presence
+    metadata[:rationale] = rationale if rationale
+
+    AuditLog.create!(
+      user: current_user,
+      action: action_name,
+      page_path: page&.path || @created_page_path,
+      page_title: page&.title || @created_page_title,
+      ip_address: request.remote_ip,
+      user_agent: request.user_agent.to_s.truncate(500),
+      metadata: metadata.presence
+    )
+  rescue => e
+    Rails.logger.error("AuditLog failed: #{e.message}")
   end
 
   # Normalizes content before diffing: collapses redundant blank lines (3+ → 2),

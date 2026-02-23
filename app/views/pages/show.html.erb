@@ -19,6 +19,9 @@
           <% end %>
           <button type="button" class="wiki-action-link wiki-action-print">Print</button>
           <button type="button" class="wiki-action-link wiki-action-share">Share</button>
+          <% if admin? && @page.is_a?(Page) %>
+            <button type="button" class="wiki-action-link wiki-action-delete" style="color: var(--color-danger, #dc2626);">Delete</button>
+          <% end %>
         </div>
       </div>
       <% if show_edit_link && @page.coordinators.any? %>
@@ -104,6 +107,29 @@
         navigator.clipboard.writeText(window.location.href);
         btn.textContent = "Link copied";
         setTimeout(function() { btn.textContent = "Share"; }, 1500);
+      }
+    });
+  });
+  document.querySelectorAll(".wiki-action-delete").forEach(function(btn) {
+    btn.addEventListener("click", function() {
+      var pageTitle = <%= @page.title.to_json.html_safe %>;
+      var input = prompt('To delete this page, type its title: "' + pageTitle + '"');
+      if (input === null) return;
+      if (input.trim() === pageTitle.trim()) {
+        var form = document.createElement("form");
+        form.method = "POST";
+        form.action = "/" + <%= page_path.to_json.html_safe %>;
+        var method = document.createElement("input");
+        method.type = "hidden"; method.name = "_method"; method.value = "delete";
+        form.appendChild(method);
+        var token = document.createElement("input");
+        token.type = "hidden"; token.name = "authenticity_token";
+        token.value = document.querySelector('meta[name="csrf-token"]').content;
+        form.appendChild(token);
+        document.body.appendChild(form);
+        form.submit();
+      } else {
+        alert("Title didn't match. Page was not deleted.");
       }
     });
   });

@@ -9,7 +9,9 @@
       </h2>
       <div class="wiki-sidebar-actions">
         <%= link_to "Search", search_path, class: "wiki-sidebar-action-link #{current_page?(search_path) ? 'wiki-sidebar-action-link--active' : ''}" %>
-        <%= link_to "Create", edit_doc_path(new: "1"), class: "wiki-sidebar-action-link #{controller_name == 'pages' && action_name == 'edit' && params[:new].to_s == '1' ? 'wiki-sidebar-action-link--active' : ''}" %>
+        <% if can_create_page? %>
+          <%= link_to "Create", edit_doc_path(new: "1"), class: "wiki-sidebar-action-link #{controller_name == 'pages' && action_name == 'edit' && params[:new].to_s == '1' ? 'wiki-sidebar-action-link--active' : ''}" %>
+        <% end %>
       </div>
     </div>
     <ul class="wiki-nav-list">
