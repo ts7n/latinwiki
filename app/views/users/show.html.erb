@@ -1,0 +1,116 @@
+<% content_for :title, @user ? "#{@user.name || @user.username} - LatinWiki" : "User - LatinWiki" %>
+<% can_edit_profile = @user && current_user && current_user.id == @user.id %>
+<div class="wiki-layout">
+  <%= render "shared/wiki_sidebar" %>
+  <div class="wiki-content">
+    <div class="wiki-content-main">
+      <article class="wiki-article" data-controller="link-preview">
+        <% if @user %>
+          <header class="wiki-article-header">
+            <div class="wiki-article-title-block">
+              <h1 class="wiki-article-title">
+                <%= @user.name || @user.username %><% if @user.pronouns.present? %>
+                  <span class="wiki-article-pronouns"><%= @user.pronouns %></span>
+                <% end %>
+              </h1>
+              <% if @user.description.present? %>
+                <p class="wiki-article-subtitle"><%= @user.description %></p>
+              <% end %>
+              <% if @user.email.present? %>
+                <p class="wiki-article-email"><%= mail_to @user.email %></p>
+              <% end %>
+            </div>
+          </header>
+          <div class="wiki-article-content">
+            <% if @show_empty_profile_help %>
+              <div class="wiki-empty-profile-help">
+                <h2 class="wiki-empty-profile-help-title">This space is yours</h2>
+                <p>You can edit and structure your profile entirely as you wish. For inspiration, you could include:</p>
+                <ul>
+                  <li><strong>What you're up to now</strong> — current projects, studies, or interests. If you're an alumni, you can talk about life and career after Latin.</li>
+                  <li><strong>Programs or opportunities</strong> — clubs, programs, internships, classes, etc. that you've taken advantage of and want to share reflections on</li>
+                  <li><strong>General advice</strong> — tips or guidance you can offer to younger students</li>
+                  <li><strong>Links</strong> — to your LinkedIn, website, etc.</li>
+                </ul>
+                <p><%= link_to "Edit your profile →", edit_profile_path(special: "myprofile"), class: "wiki-action-link" %></p>
+              </div>
+            <% else %>
+              <%= @content %>
+            <% end %>
+          </div>
+        <% else %>
+          <div class="wiki-article-content">
+            <p>User not found.</p>
+          </div>
+        <% end %>
+      </article>
+    </div>
+    <% if @user %>
+      <aside class="wiki-content-sidebar">
+        <div class="wiki-card wiki-actions-card">
+          <div class="wiki-card-title">Actions</div>
+          <div class="wiki-actions-list">
+            <% if can_edit_profile %>
+              <%= link_to "Edit", edit_profile_path(special: "myprofile"), class: "wiki-action-link" %>
+            <% end %>
+            <button type="button" class="wiki-action-link wiki-action-print">Print</button>
+            <button type="button" class="wiki-action-link wiki-action-share">Share</button>
+          </div>
+        </div>
+        <% if @user.coordinated_pages.any? %>
+          <div class="wiki-card wiki-coordinators-card">
+            <div class="wiki-card-title">Coordinates</div>
+            <ul class="wiki-coordinators-list">
+              <% @user.coordinated_pages.sort_by(&:title).each do |page| %>
+                <li class="wiki-coordinator-item">
+                  <%= link_to page.title, doc_path(path: page.path), class: "wiki-coordinator-link" %>
+                </li>
+              <% end %>
+            </ul>
+          </div>
+        <% end %>
+        <% toc_groups = build_toc_groups(@sections); if toc_groups.any? %>
+          <div class="wiki-card wiki-toc-card">
+            <div class="wiki-card-title">Contents</div>
+            <ul class="wiki-toc-list">
+              <% toc_groups.each do |group| %>
+                <li class="wiki-toc-item wiki-toc-item--h2">
+                  <%= link_to group[:title], "##{group[:id]}", class: "wiki-toc-link" %>
+                  <% if group[:children].any? %>
+                    <ul class="wiki-toc-list wiki-toc-list--nested">
+                      <% group[:children].each do |child| %>
+                        <li class="wiki-toc-item wiki-toc-item--h3">
+                          <%= link_to child[:title], "##{child[:id]}", class: "wiki-toc-link" %>
+                        </li>
+                      <% end %>
+                    </ul>
+                  <% end %>
+                </li>
+              <% end %>
+            </ul>
+          </div>
+        <% end %>
+      </aside>
+    <% end %>
+  </div>
+</div>
+
+<script>
+  document.querySelectorAll(".wiki-action-print").forEach(function(btn) {
+    btn.addEventListener("click", function() { window.print(); });
+  });
+  document.querySelectorAll(".wiki-action-share").forEach(function(btn) {
+    btn.addEventListener("click", function() {
+      if (navigator.share) {
+        navigator.share({
+          title: document.title,
+          url: window.location.href
+        });
+      } else {
+        navigator.clipboard.writeText(window.location.href);
+        btn.textContent = "Link copied";
+        setTimeout(function() { btn.textContent = "Share"; }, 1500);
+      }
+    });
+  });
+</script>

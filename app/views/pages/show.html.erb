@@ -1,0 +1,110 @@
+<% content_for :title, "#{@page.title} - LatinWiki" %>
+<% page_path = @page.respond_to?(:path) ? @page.path : @page.slug %>
+<% show_edit_link = @page.is_a?(Page) %>
+<div class="wiki-layout">
+  <%= render "shared/wiki_sidebar", current_page: @page %>
+  <div class="wiki-content">
+    <div class="wiki-content-main">
+      <article class="wiki-article" data-controller="link-preview">
+        <h1 class="wiki-article-title"><%= @page.title %></h1>
+        <%= @content %>
+      </article>
+    </div>
+    <aside class="wiki-content-sidebar">
+      <div class="wiki-card wiki-actions-card">
+        <div class="wiki-card-title">Actions</div>
+        <div class="wiki-actions-list">
+          <% if show_edit_link %>
+            <%= link_to "Edit", edit_doc_path(edit_doc_query(page_path)), class: "wiki-action-link" %>
+          <% end %>
+          <button type="button" class="wiki-action-link wiki-action-print">Print</button>
+          <button type="button" class="wiki-action-link wiki-action-share">Share</button>
+        </div>
+      </div>
+      <% if show_edit_link && @page.coordinators.any? %>
+        <div class="wiki-card wiki-coordinators-card">
+          <div class="wiki-card-title">Coordinators</div>
+          <ul class="wiki-coordinators-list">
+            <% @page.coordinators.each do |c| %>
+              <li class="wiki-coordinator-item">
+                <%= link_to c.name.presence || c.username, user_path(c.username), class: "wiki-coordinator-link" %>
+              </li>
+            <% end %>
+          </ul>
+        </div>
+      <% end %>
+      <% if @page.is_a?(Page) && @page.versions.any? %>
+        <div class="wiki-card wiki-history-card">
+          <div class="wiki-card-title">Edit history</div>
+          <ul class="wiki-history-list">
+            <% versions = @page.versions.recent.limit(3).to_a %>
+            <% current_version = @page.versions.maximum(:version_number) %>
+            <% versions.each do |v| %>
+              <% has_prev = v.version_number > 1 %>
+              <% is_current = v.version_number == current_version %>
+              <li class="wiki-history-item">
+                <span class="wiki-history-version">v<%= v.version_number %></span>
+                <% if v.user %>
+                  <% link_class = "wiki-history-user-link" %>
+                  <% link_class += " wiki-history-user-link--coordinator" if @page.is_a?(Page) && @page.coordinators.include?(v.user) %>
+                  <span class="wiki-history-user"><%= link_to v.user.username, user_path(v.user.username), class: link_class %></span>
+                <% end %>
+                <span class="wiki-history-date"><%= time_ago_in_words(v.created_at) %> ago</span>
+                <span class="wiki-history-actions">
+                  <% if has_prev %>
+                    <%= link_to "vs prev", diff_doc_path(diff_doc_query(page_path, v: v.version_number, with: "prev")), class: "wiki-history-diff-link", title: "What changed in this version (vs previous)" %>
+                  <% end %>
+                  <% unless is_current %>
+                    <%= link_to "vs current", diff_doc_path(diff_doc_query(page_path, v: v.version_number, with: "current")), class: "wiki-history-diff-link", title: "What changed from this version to current" %>
+                  <% end %>
+                </span>
+              </li>
+            <% end %>
+          </ul>
+          <%= link_to "View all", history_doc_path(history_doc_query(page_path)), class: "wiki-history-view-all" %>
+        </div>
+      <% end %>
+      <% if @sections.any? %>
+        <div class="wiki-card wiki-toc-card">
+          <div class="wiki-card-title">Contents</div>
+          <ul class="wiki-toc-list">
+            <% build_toc_groups(@sections).each do |group| %>
+              <li class="wiki-toc-item wiki-toc-item--h2">
+                <%= link_to group[:title], "##{group[:id]}", class: "wiki-toc-link" %>
+                <% if group[:children].any? %>
+                  <ul class="wiki-toc-list wiki-toc-list--nested">
+                    <% group[:children].each do |child| %>
+                      <li class="wiki-toc-item wiki-toc-item--h3">
+                        <%= link_to child[:title], "##{child[:id]}", class: "wiki-toc-link" %>
+                      </li>
+                    <% end %>
+                  </ul>
+                <% end %>
+              </li>
+            <% end %>
+          </ul>
+        </div>
+      <% end %>
+    </aside>
+  </div>
+</div>
+
+<script>
+  document.querySelectorAll(".wiki-action-print").forEach(function(btn) {
+    btn.addEventListener("click", function() { window.print(); });
+  });
+  document.querySelectorAll(".wiki-action-share").forEach(function(btn) {
+    btn.addEventListener("click", function() {
+      if (navigator.share) {
+        navigator.share({
+          title: document.title,
+          url: window.location.href
+        });
+      } else {
+        navigator.clipboard.writeText(window.location.href);
+        btn.textContent = "Link copied";
+        setTimeout(function() { btn.textContent = "Share"; }, 1500);
+      }
+    });
+  });
+</script>

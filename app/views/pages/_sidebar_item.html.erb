@@ -1,0 +1,14 @@
+<% active = current_page && page.respond_to?(:path) && page.path == current_page.path %>
+<li>
+  <% if page.children.any? %>
+    <div class="wiki-nav-section"><%= page.title %></div>
+    <ul class="wiki-nav-list wiki-nav-list--nested">
+      <% page.children.ordered.each do |child| %>
+        <%= render "pages/sidebar_item", page: child, current_page: current_page %>
+      <% end %>
+    </ul>
+  <% else %>
+    <% page_path = page.respond_to?(:path) ? page.path : page.slug %>
+    <%= link_to page.title, doc_path(path: page_path), class: "wiki-nav-link #{active ? 'wiki-nav-link--active' : ''}" %>
+  <% end %>
+</li>

@@ -1,0 +1,74 @@
+<% content_for :title, @creating ? "Create a page - LatinWiki" : "Edit #{@page.title} - LatinWiki" %>
+<%= content_for :head do %>
+  <script src="https://cdn.jsdelivr.net/npm/turndown@7.2.0/dist/turndown.min.js"></script>
+<% end %>
+<div class="wiki-layout wiki-edit-layout">
+  <%= render "shared/wiki_sidebar", current_page: @creating ? nil : @page %>
+  <div class="wiki-content wiki-edit-content">
+    <div class="wiki-edit-header">
+      <h1 class="wiki-page-title"><%= @creating ? "Create a page" : "Edit #{@page.title}" %></h1>
+      <div class="wiki-edit-actions">
+        <%= link_to "← Cancel", @creating ? root_path : doc_path(path: @page.path), class: "wiki-edit-cancel" %>
+      </div>
+    </div>
+    <% if @merge_conflict %>
+      <div class="wiki-merge-banner">
+        <p class="wiki-merge-banner-text">Someone else saved changes while you were editing. Merge your changes below.</p>
+      </div>
+    <% end %>
+    <% if @creating %>
+      <%= form_with scope: :page, url: pages_path, method: :post, local: true, data: { turbo: false }, class: "wiki-edit-form" do |f| %>
+        <div class="wiki-edit-field">
+          <%= f.label :section, "Section" %>
+          <%= f.select :section, options_for_select(wiki_createable_sections.map { |s| [ s[:name], s[:slug] ] }, params.dig(:page, :section)), { include_blank: "Select a section" }, class: "wiki-edit-input wiki-edit-select" %>
+        </div>
+        <div class="wiki-edit-field">
+          <%= f.label :title, "Title" %>
+          <%= f.text_field :title, value: params.dig(:page, :title), placeholder: "Page title", class: "wiki-edit-input" %>
+        </div>
+        <div class="wiki-edit-field">
+          <%= f.label :content, "Content" %>
+          <%= render "shared/wiki_editor", content_html: @content_html, input_name: "page[content]", draft_key: "new" %>
+        </div>
+        <div class="wiki-edit-field">
+          <%= f.label :rationale, "Comment for history (optional)" %>
+          <%= text_field_tag "page[rationale]", params.dig(:page, :rationale), placeholder: "What purpose does this page serve?", class: "wiki-edit-input", maxlength: 200 %>
+        </div>
+        <div class="wiki-edit-form-actions">
+          <%= f.submit "Publish", class: "wiki-edit-submit" %>
+        </div>
+      <% end %>
+    <% else %>
+      <%= form_with model: @page, url: doc_path(path: @page.path), method: :patch, local: true, data: { turbo: false }, class: "wiki-edit-form" do |f| %>
+        <%= hidden_field_tag "page[base_version]", @base_version %>
+        <%= hidden_field_tag "resolve", "1" if @merge_conflict %>
+        <div class="wiki-edit-field">
+          <%= f.label :title, "Title" %>
+          <%= f.text_field :title, value: @edit_title, placeholder: "Page title", class: "wiki-edit-input" %>
+        </div>
+        <div class="wiki-edit-field <%= 'wiki-edit-merge-columns' if @merge_conflict %>">
+          <% if @merge_conflict %>
+            <div class="wiki-edit-merge-left">
+              <div class="wiki-edit-merge-label">Current saved version (merge your changes here)</div>
+              <%= render "shared/wiki_editor", content_html: @content_html, input_name: "page[content]" %>
+            </div>
+            <div class="wiki-edit-merge-right">
+              <div class="wiki-edit-merge-label">Your unsaved changes</div>
+              <div class="wiki-edit-merge-diff"><%= @merge_diff.to_s(:html_simple).html_safe %></div>
+            </div>
+          <% else %>
+            <%= f.label :content, "Content" %>
+            <%= render "shared/wiki_editor", content_html: @content_html, input_name: "page[content]", draft_key: @merge_conflict ? nil : @page.path %>
+          <% end %>
+        </div>
+        <div class="wiki-edit-field">
+          <%= f.label :rationale, "Comment for history (optional)" %>
+          <%= f.text_field :rationale, value: @edit_rationale, placeholder: "Briefly, what did you change and why?", class: "wiki-edit-input", maxlength: 200 %>
+        </div>
+        <div class="wiki-edit-form-actions">
+          <%= f.submit @merge_conflict ? "Save merged changes" : "Save changes", class: "wiki-edit-submit" %>
+        </div>
+      <% end %>
+    <% end %>
+  </div>
+</div>

@@ -1,0 +1,21 @@
+# Wiki configuration - single source for sections and defaults.
+# Sections appear in sidebar, Create dropdown, and URLs.
+sections:
+  - slug: meta
+    name: Meta
+    createable: false
+  - slug: subjects
+    name: Subjects
+    createable: true
+
+default_path: meta/introduction
+
+seed_pages:
+  - section: meta
+    slug: introduction
+    title: Introduction
+    content: "..."
+  - section: subjects
+    slug: math
+    title: Math
+    content: "..."

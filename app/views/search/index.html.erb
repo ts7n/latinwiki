@@ -1,0 +1,75 @@
+<% content_for :title, "Search - LatinWiki" %>
+<div class="wiki-layout">
+  <%= render "shared/wiki_sidebar" %>
+  <div class="wiki-content wiki-search-content">
+    <div class="wiki-search-header">
+      <h1 class="wiki-page-title">Search</h1>
+      <%= form_with url: search_path, method: :get, local: true, class: "wiki-search-form" do |f| %>
+        <div class="wiki-search-row">
+          <input type="search" name="q" value="<%= @query %>" placeholder="<%= @mode == "people" ? "Bobby Tables" : "Airspeed velocity of an unladen swallow" %>" class="wiki-search-input" autofocus onfocus="this.setSelectionRange(this.value.length, this.value.length)">
+          <button type="submit" class="wiki-search-submit">Search</button>
+        </div>
+        <div class="wiki-search-modes" data-placeholders='{"pages":"Airspeed velocity of an unladen swallow","people":"Bobby Tables"}'>
+          <label class="wiki-search-mode">
+            <input type="radio" name="mode" value="pages" <%= "checked" if @mode == "pages" %>>
+            Pages
+          </label>
+          <% if current_user %>
+            <label class="wiki-search-mode">
+              <input type="radio" name="mode" value="people" <%= "checked" if @mode == "people" %>>
+              People
+            </label>
+          <% end %>
+        </div>
+        <script>
+          document.querySelector(".wiki-search-modes").addEventListener("change", function(e) {
+            if (e.target.name !== "mode") return;
+            var placeholders = JSON.parse(this.dataset.placeholders);
+            document.querySelector(".wiki-search-input").placeholder = placeholders[e.target.value] || "";
+          });
+        </script>
+      <% end %>
+    </div>
+    <div class="wiki-search-results">
+      <% if @query.present? %>
+        <% if @mode == "pages" %>
+          <% if @pages&.any? %>
+            <ul class="wiki-search-list">
+              <% @pages.each do |page| %>
+                <li class="wiki-search-item">
+                  <%= link_to page.title, doc_path(path: page.path), class: "wiki-search-link" %>
+                  <% if page.parent %>
+                    <span class="wiki-search-context">in <%= page.parent.title %></span>
+                  <% end %>
+                  <% snippet = search_result_snippet(page, @query) %>
+                  <% if snippet.present? %>
+                    <div class="wiki-search-snippet"><%= snippet %></div>
+                  <% end %>
+                </li>
+              <% end %>
+            </ul>
+          <% else %>
+            <p class="wiki-search-empty">No pages found for "<%= @query %>".</p>
+          <% end %>
+        <% else %>
+          <% if @people&.any? %>
+            <ul class="wiki-search-list">
+              <% @people.each do |user| %>
+                <li class="wiki-search-item">
+                  <%= link_to user.name.presence || user.username, user_path(user.username), class: "wiki-search-link" %>                  <% snippet = search_user_snippet(user, @query) %>
+                  <% if snippet.present? %>
+                    <div class="wiki-search-snippet"><%= snippet %></div>
+                  <% elsif user.description.present? %>
+                    <span class="wiki-search-context"><%= user.description %></span>
+                  <% end %>
+                </li>
+              <% end %>
+            </ul>
+          <% else %>
+            <p class="wiki-search-empty">No people found for "<%= @query %>".</p>
+          <% end %>
+        <% end %>
+      <% end %>
+    </div>
+  </div>
+</div>

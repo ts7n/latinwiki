@@ -1,0 +1,39 @@
+<% content_for :title, "Edit history - #{@page.title} - LatinWiki" %>
+<% page_path = @page.path %>
+<div class="wiki-layout">
+  <%= render "shared/wiki_sidebar", current_page: @page %>
+  <div class="wiki-content wiki-diff-content-area">
+    <div class="wiki-diff-header">
+      <h1 class="wiki-page-title">Edit history: <%= @page.title %></h1>
+      <%= link_to "← Back to page", doc_path(path: page_path), class: "wiki-diff-back" %>
+    </div>
+    <div class="wiki-diff-content">
+      <ul class="wiki-history-list wiki-history-list--full">
+          <% @versions.each do |v| %>
+            <% has_prev = v.version_number > 1 %>
+            <% is_current = v.version_number == @current_version %>
+            <li class="wiki-history-item">
+              <span class="wiki-history-version">v<%= v.version_number %></span>
+              <% if v.user %>
+                <% link_class = "wiki-history-user-link" %>
+                <% link_class += " wiki-history-user-link--coordinator" if @page.is_a?(Page) && @page.coordinators.include?(v.user) %>
+                <span class="wiki-history-user"><%= link_to v.user.username, user_path(v.user.username), class: link_class %></span>
+              <% end %>
+              <span class="wiki-history-date"><%= v.created_at.strftime("%b %d, %Y at %l:%M %p") %></span>
+              <% if v.rationale.present? %>
+                <div class="wiki-history-rationale">"<%= v.rationale %>"</div>
+              <% end %>
+              <span class="wiki-history-actions">
+                <% if has_prev %>
+                  <%= link_to "vs prev", diff_doc_path(diff_doc_query(page_path, v: v.version_number, with: "prev")), class: "wiki-history-diff-link", title: "What changed in this version (vs previous)" %>
+                <% end %>
+                <% unless is_current %>
+                  <%= link_to "vs current", diff_doc_path(diff_doc_query(page_path, v: v.version_number, with: "current")), class: "wiki-history-diff-link", title: "What changed from this version to current" %>
+                <% end %>
+              </span>
+            </li>
+          <% end %>
+      </ul>
+    </div>
+  </div>
+</div>

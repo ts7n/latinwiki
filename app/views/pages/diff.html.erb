@@ -1,0 +1,14 @@
+<% content_for :title, "Diff v#{@version.version_number} - #{@page.title} - LatinWiki" %>
+<% page_path = @page.path %>
+<div class="wiki-layout">
+  <%= render "shared/wiki_sidebar", current_page: @page %>
+  <div class="wiki-content wiki-diff-content-area">
+    <div class="wiki-diff-header">
+      <h1 class="wiki-page-title">Diff: <%= @diff_label %></h1>
+      <%= link_to "← Back to page", doc_path(path: page_path), class: "wiki-diff-back" %>
+    </div>
+    <div class="wiki-diff-content">
+      <%= @diff.to_s(:html_simple).html_safe %>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,39 @@
+<% content_for :title, "Edit profile - LatinWiki" %>
+<%= content_for :head do %>
+  <script src="https://cdn.jsdelivr.net/npm/turndown@7.2.0/dist/turndown.min.js"></script>
+<% end %>
+<div class="wiki-layout wiki-edit-layout">
+  <%= render "shared/wiki_sidebar" %>
+  <div class="wiki-content wiki-edit-content">
+    <div class="wiki-edit-header">
+      <h1 class="wiki-page-title">Edit profile</h1>
+      <div class="wiki-edit-actions">
+        <%= link_to "← Cancel", user_path(@user.username), class: "wiki-edit-cancel" %>
+      </div>
+    </div>
+    <p class="wiki-edit-profile-privacy">Profiles are private to the Latin community.</p>
+    <%= form_with model: @user, url: user_path(@user.username), method: :patch, local: true, class: "wiki-edit-form" do |f| %>
+      <div class="wiki-edit-field-row">
+        <div class="wiki-edit-field wiki-edit-field--name">
+          <%= f.label :name, "Name" %>
+          <%= f.text_field :name, value: @user.name, placeholder: "Display name", class: "wiki-edit-input" %>
+        </div>
+        <div class="wiki-edit-field wiki-edit-field--pronouns">
+          <%= f.label :pronouns, "Pronouns" %>
+          <%= f.text_field :pronouns, value: @user.pronouns, placeholder: "e.g. she/her", class: "wiki-edit-input" %>
+        </div>
+      </div>
+      <div class="wiki-edit-field">
+        <%= f.label :description, "Description" %>
+        <%= f.text_field :description, placeholder: "Field/interest, affiliations, e.g. \"Current senior\" or \"Med student at UCSF\"", class: "wiki-edit-input" %>
+      </div>
+      <div class="wiki-edit-field">
+        <%= f.label :profile_content, "Content" %>
+        <%= render "shared/wiki_editor", content_html: @content_html, input_name: "user[profile_content]", draft_key: "user-#{@user.username}" %>
+      </div>
+      <div class="wiki-edit-form-actions">
+        <%= f.submit "Save changes", class: "wiki-edit-submit" %>
+      </div>
+    <% end %>
+  </div>
+</div>
