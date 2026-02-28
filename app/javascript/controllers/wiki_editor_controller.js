@@ -956,7 +956,20 @@ export default class extends Controller {
     } catch (_) {}
   }
 
+  stripRenderArtifacts(html) {
+    const tmp = document.createElement("div")
+    tmp.innerHTML = html
+    tmp.querySelectorAll(".wiki-heading-anchor").forEach((el) => el.remove())
+    tmp.querySelectorAll(".wiki-heading-with-anchor").forEach((el) => {
+      el.removeAttribute("id")
+      el.classList.remove("wiki-heading-with-anchor")
+      if (!el.className) el.removeAttribute("class")
+    })
+    return tmp.innerHTML
+  }
+
   htmlToMarkdown(html) {
+    html = this.stripRenderArtifacts(html)
     if (typeof TurndownService === "undefined") {
       const el = document.createElement("div")
       el.innerHTML = html
