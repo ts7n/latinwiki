@@ -1,7 +1,4 @@
 <% content_for :title, @creating ? "Create a page - LatinWiki" : "Edit #{@page.title} - LatinWiki" %>
-<%= content_for :head do %>
-  <script src="https://cdn.jsdelivr.net/npm/turndown@7.2.0/dist/turndown.min.js"></script>
-<% end %>
 <div class="wiki-layout wiki-edit-layout">
   <%= render "shared/wiki_sidebar", current_page: @creating ? nil : @page %>
   <div class="wiki-content wiki-edit-content">

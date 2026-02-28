@@ -1620,6 +1620,13 @@ body::before {
     flex-direction: column;
   }
 
+  .wiki-editor-mount {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
   .wiki-editor-canvas {
     flex: 1;
     min-height: 200px;
@@ -1634,9 +1641,12 @@ body::before {
     outline: none;
   }
 
-  .wiki-editor-canvas:empty::before {
-    content: attr(data-placeholder);
+  .wiki-editor-canvas.is-empty::before {
+    content: "Start typing...";
     color: #999;
+    pointer-events: none;
+    float: left;
+    height: 0;
   }
 
   .wiki-editor-canvas > :first-child { margin-top: 0; }
