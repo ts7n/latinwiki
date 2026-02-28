@@ -10,7 +10,10 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_02_24_000002) do
+ActiveRecord::Schema[8.1].define(version: 2026_02_24_000003) do
+  # These are extensions that must be enabled in order to support this database
+  enable_extension "pg_catalog.plpgsql"
+
   create_table "allowed_emails", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.string "email", null: false
@@ -18,11 +21,24 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_24_000002) do
     t.index ["email"], name: "index_allowed_emails_on_email", unique: true
   end
 
+  create_table "audit_logs", force: :cascade do |t|
+    t.string "action", null: false
+    t.datetime "created_at", null: false
+    t.string "ip_address"
+    t.jsonb "metadata"
+    t.string "page_path"
+    t.string "page_title"
+    t.string "user_agent"
+    t.bigint "user_id", null: false
+    t.index ["created_at"], name: "index_audit_logs_on_created_at"
+    t.index ["user_id"], name: "index_audit_logs_on_user_id"
+  end
+
   create_table "page_coordinators", force: :cascade do |t|
     t.datetime "created_at", null: false
-    t.integer "page_id", null: false
+    t.bigint "page_id", null: false
     t.datetime "updated_at", null: false
-    t.integer "user_id", null: false
+    t.bigint "user_id", null: false
     t.index ["page_id", "user_id"], name: "index_page_coordinators_on_page_id_and_user_id", unique: true
     t.index ["page_id"], name: "index_page_coordinators_on_page_id"
     t.index ["user_id"], name: "index_page_coordinators_on_user_id"
@@ -31,11 +47,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_24_000002) do
   create_table "page_versions", force: :cascade do |t|
     t.text "content", default: "", null: false
     t.datetime "created_at", null: false
-    t.integer "page_id", null: false
+    t.bigint "page_id", null: false
     t.string "rationale"
     t.string "title", null: false
     t.datetime "updated_at", null: false
-    t.integer "user_id"
+    t.bigint "user_id"
     t.integer "version_number", null: false
     t.index ["page_id", "version_number"], name: "index_page_versions_on_page_id_and_version_number", unique: true
     t.index ["page_id"], name: "index_page_versions_on_page_id"
@@ -45,7 +61,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_24_000002) do
   create_table "pages", force: :cascade do |t|
     t.text "content", default: ""
     t.datetime "created_at", null: false
-    t.integer "parent_id"
+    t.bigint "parent_id"
     t.integer "position", default: 0, null: false
     t.string "slug", null: false
     t.string "title", null: false
@@ -68,6 +84,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_24_000002) do
     t.datetime "updated_at", null: false
   end
 
+  add_foreign_key "audit_logs", "users"
   add_foreign_key "page_coordinators", "pages"
   add_foreign_key "page_coordinators", "users"
   add_foreign_key "page_versions", "pages"
