@@ -1663,12 +1663,18 @@ body::before {
     padding-left: 2em;
     list-style-type: disc;
   }
+  .wiki-editor-canvas ul ul { list-style-type: circle; }
+  .wiki-editor-canvas ul ul ul { list-style-type: square; }
+  .wiki-editor-canvas ul ul ul ul { list-style-type: disc; }
 
   .wiki-editor-canvas ol {
     margin: 0.5em 0;
     padding-left: 2em;
     list-style-type: decimal;
   }
+  .wiki-editor-canvas ol ol { list-style-type: lower-alpha; }
+  .wiki-editor-canvas ol ol ol { list-style-type: lower-roman; }
+  .wiki-editor-canvas ol ol ol ol { list-style-type: decimal; }
 
   .wiki-editor-canvas a {
     color: #0645ad;
@@ -1770,12 +1776,18 @@ body::before {
     padding-left: 2em;
     list-style-type: disc;
   }
+  .wiki-article ul ul { list-style-type: circle; }
+  .wiki-article ul ul ul { list-style-type: square; }
+  .wiki-article ul ul ul ul { list-style-type: disc; }
 
   .wiki-article ol {
     margin: 0.5em 0;
     padding-left: 2em;
     list-style-type: decimal;
   }
+  .wiki-article ol ol { list-style-type: lower-alpha; }
+  .wiki-article ol ol ol { list-style-type: lower-roman; }
+  .wiki-article ol ol ol ol { list-style-type: decimal; }
 
   .wiki-article blockquote {
     margin: 0.5em 0;

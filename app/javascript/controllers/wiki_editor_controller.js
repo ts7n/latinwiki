@@ -375,6 +375,19 @@ export default class extends Controller {
     const data = e.clipboardData
     const html = data.getData("text/html")
     const text = data.getData("text/plain")
+
+    if (!html && text && /^https?:\/\/\S+$/i.test(text.trim())) {
+      const url = this.escapeHtml(text.trim())
+      const sel = window.getSelection()
+      if (sel && !sel.isCollapsed) {
+        document.execCommand("createLink", false, url)
+      } else {
+        document.execCommand("insertHTML", false, `<a href="${url}">${url}</a>`)
+      }
+      this.updateToolbarState()
+      return
+    }
+
     let toInsert
     if (html) {
       toInsert = this.sanitizePasteHtml(html)
