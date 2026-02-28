@@ -1313,6 +1313,9 @@ body::before {
     padding: 0.5em 0.75em;
     background: #f6f6f6;
     border-bottom: 1px solid #aaa;
+    position: sticky;
+    top: 0;
+    z-index: 10;
   }
 
   .wiki-editor-btn {
@@ -1636,45 +1639,48 @@ body::before {
     color: #999;
   }
 
+  .wiki-editor-canvas > :first-child { margin-top: 0; }
+  .wiki-editor-canvas > :last-child { margin-bottom: 0; }
+
   .wiki-editor-canvas h1 {
     font-size: 1.8em;
     font-weight: 600;
-    margin: 0 0 0.5em 0;
+    margin: 1.5em 0 0.5em;
   }
 
   .wiki-editor-canvas h2 {
     font-size: 1.4em;
     font-weight: 600;
-    margin: 1.2em 0 0.4em 0;
+    margin: 1.5em 0 0.5em;
   }
 
   .wiki-editor-canvas h3 {
     font-size: 1.2em;
     font-weight: 600;
-    margin: 1em 0 0.3em 0;
+    margin: 1.25em 0 0.4em;
   }
 
   .wiki-editor-canvas p {
-    margin: 0.5em 0;
+    margin: 0.75em 0;
   }
 
-  .wiki-editor-canvas ul {
-    margin: 0.5em 0;
+  .wiki-editor-canvas ul,
+  .wiki-editor-canvas ol {
+    margin: 0.75em 0;
     padding-left: 2em;
-    list-style-type: disc;
   }
+  .wiki-editor-canvas ul { list-style-type: disc; }
+  .wiki-editor-canvas ol { list-style-type: decimal; }
   .wiki-editor-canvas ul ul { list-style-type: circle; }
   .wiki-editor-canvas ul ul ul { list-style-type: square; }
   .wiki-editor-canvas ul ul ul ul { list-style-type: disc; }
-
-  .wiki-editor-canvas ol {
-    margin: 0.5em 0;
-    padding-left: 2em;
-    list-style-type: decimal;
-  }
   .wiki-editor-canvas ol ol { list-style-type: lower-alpha; }
   .wiki-editor-canvas ol ol ol { list-style-type: lower-roman; }
   .wiki-editor-canvas ol ol ol ol { list-style-type: decimal; }
+
+  .wiki-editor-canvas li { margin: 0.25em 0; }
+  .wiki-editor-canvas li > ul,
+  .wiki-editor-canvas li > ol { margin: 0.25em 0; }
 
   .wiki-editor-canvas a {
     color: #0645ad;
@@ -1686,11 +1692,13 @@ body::before {
   }
 
   .wiki-editor-canvas blockquote {
-    margin: 0.5em 0;
-    padding-left: 1em;
+    margin: 0.75em 0;
+    padding: 0.1em 0 0.1em 1em;
     border-left: 2px solid #ddd;
     color: #666;
   }
+  .wiki-editor-canvas blockquote > :first-child { margin-top: 0; }
+  .wiki-editor-canvas blockquote > :last-child { margin-bottom: 0; }
 
   .wiki-article {
     max-width: 42em;
@@ -1720,12 +1728,15 @@ body::before {
     line-height: 1.25;
   }
 
+  .wiki-article > :first-child { margin-top: 0; }
+  .wiki-article > :last-child { margin-bottom: 0; }
+
   .wiki-article h1 {
     font-size: 1.8em;
     font-weight: 600;
     border-bottom: 1px solid #aaa;
     padding-bottom: 0.2em;
-    margin: 0 0 0.5em 0;
+    margin: 1.5em 0 0.5em;
   }
 
   .wiki-article h2,
@@ -1759,42 +1770,44 @@ body::before {
 
   .wiki-article h2 {
     font-size: 1.4em;
-    margin: 1.2em 0 0.4em 0;
+    margin: 1.5em 0 0.5em;
   }
 
   .wiki-article h3 {
     font-size: 1.2em;
-    margin: 1em 0 0.3em 0;
+    margin: 1.25em 0 0.4em;
   }
 
   .wiki-article p {
-    margin: 0.5em 0;
+    margin: 0.75em 0;
   }
 
-  .wiki-article ul {
-    margin: 0.5em 0;
+  .wiki-article ul,
+  .wiki-article ol {
+    margin: 0.75em 0;
     padding-left: 2em;
-    list-style-type: disc;
   }
+  .wiki-article ul { list-style-type: disc; }
+  .wiki-article ol { list-style-type: decimal; }
   .wiki-article ul ul { list-style-type: circle; }
   .wiki-article ul ul ul { list-style-type: square; }
   .wiki-article ul ul ul ul { list-style-type: disc; }
-
-  .wiki-article ol {
-    margin: 0.5em 0;
-    padding-left: 2em;
-    list-style-type: decimal;
-  }
   .wiki-article ol ol { list-style-type: lower-alpha; }
   .wiki-article ol ol ol { list-style-type: lower-roman; }
   .wiki-article ol ol ol ol { list-style-type: decimal; }
 
+  .wiki-article li { margin: 0.25em 0; }
+  .wiki-article li > ul,
+  .wiki-article li > ol { margin: 0.25em 0; }
+
   .wiki-article blockquote {
-    margin: 0.5em 0;
-    padding-left: 1em;
+    margin: 0.75em 0;
+    padding: 0.1em 0 0.1em 1em;
     border-left: 2px solid #ddd;
     color: #666;
   }
+  .wiki-article blockquote > :first-child { margin-top: 0; }
+  .wiki-article blockquote > :last-child { margin-bottom: 0; }
 
   .wiki-article pre, .wiki-article code {
     font-family: monospace;
@@ -1804,6 +1817,7 @@ body::before {
     background: #f9f9f9;
     border: 1px solid #ddd;
     padding: 1.25em;
+    margin: 0.75em 0;
     overflow-x: auto;
   }
 
