@@ -4,6 +4,220 @@ import StarterKit from "@tiptap/starter-kit"
 import Link from "@tiptap/extension-link"
 import TurndownService from "turndown"
 
+// ─── MathInline ─────────────────────────────────────────────────────────────
+// Preserves inline math ($…$) through the editor round-trip.
+// The backend produces <span class="math-inline">\(…\)</span>; we read and
+// write that same representation so Turndown can convert it back to $…$.
+const MathInline = Node.create({
+  name: "mathInline",
+  group: "inline",
+  inline: true,
+  atom: true,
+  selectable: true,
+
+  addAttributes() {
+    return { latex: { default: "" } }
+  },
+
+  parseHTML() {
+    return [{
+      tag: "span.math-inline",
+      getAttrs: (el) => ({
+        latex: el.textContent
+          .replace(/^\\\(/, "")
+          .replace(/\\\)$/, ""),
+      }),
+    }]
+  },
+
+  renderHTML({ node }) {
+    return ["span", { class: "math-inline" }, `\\(${node.attrs.latex}\\)`]
+  },
+
+  addNodeView() {
+    return ({ node, editor, getPos }) => {
+      const dom = document.createElement("span")
+      dom.className = "wiki-math-inline-node"
+      dom.contentEditable = "false"
+      dom.textContent = `$${node.attrs.latex}$`
+
+      const editBtn = document.createElement("button")
+      editBtn.type = "button"
+      editBtn.className = "wiki-math-edit-btn"
+      editBtn.textContent = "✎"
+      editBtn.title = "Edit math"
+
+      editBtn.addEventListener("click", (e) => {
+        e.preventDefault()
+        dom.dispatchEvent(new CustomEvent("wiki:math-edit", {
+          detail: { latex: node.attrs.latex, type: "inline", getPos },
+          bubbles: true,
+        }))
+      })
+
+      dom.appendChild(editBtn)
+      return { dom }
+    }
+  },
+})
+
+// ─── MathBlock ──────────────────────────────────────────────────────────────
+// Preserves block math ($$…$$) through the editor round-trip.
+const MathBlock = Node.create({
+  name: "mathBlock",
+  group: "block",
+  atom: true,
+  selectable: true,
+
+  addAttributes() {
+    return { latex: { default: "" } }
+  },
+
+  parseHTML() {
+    return [{
+      tag: "div.math-block",
+      getAttrs: (el) => ({
+        latex: el.textContent
+          .replace(/^\\\[/, "")
+          .replace(/\\\]$/, ""),
+      }),
+    }]
+  },
+
+  renderHTML({ node }) {
+    return ["div", { class: "math-block" }, `\\[${node.attrs.latex}\\]`]
+  },
+
+  addNodeView() {
+    return ({ node, editor, getPos }) => {
+      const dom = document.createElement("div")
+      dom.className = "wiki-math-block-node"
+      dom.contentEditable = "false"
+
+      const preview = document.createElement("span")
+      preview.className = "wiki-math-block-preview"
+      preview.textContent = `$$${node.attrs.latex}$$`
+
+      const editBtn = document.createElement("button")
+      editBtn.type = "button"
+      editBtn.className = "wiki-math-edit-btn"
+      editBtn.textContent = "Edit"
+
+      const removeBtn = document.createElement("button")
+      removeBtn.type = "button"
+      removeBtn.className = "wiki-math-remove-btn"
+      removeBtn.textContent = "Remove"
+
+      removeBtn.addEventListener("click", (e) => {
+        e.preventDefault()
+        const pos = getPos()
+        editor.chain().focus().deleteRange({ from: pos, to: pos + node.nodeSize }).run()
+      })
+
+      editBtn.addEventListener("click", (e) => {
+        e.preventDefault()
+        dom.dispatchEvent(new CustomEvent("wiki:math-edit", {
+          detail: { latex: node.attrs.latex, type: "block", getPos },
+          bubbles: true,
+        }))
+      })
+
+      dom.append(preview, editBtn, removeBtn)
+      return { dom }
+    }
+  },
+})
+
+// ─── DetailsBlock ────────────────────────────────────────────────────────────
+// Preserves collapsible <details>/<summary> blocks through the editor round-trip.
+// The backend produces <details><summary>…</summary><div class="wiki-details-body" data-body-md="…">…</div></details>
+// The raw Markdown for the body is stored in data-body-md so the editor can
+// preserve it without needing to parse the rendered HTML back into Markdown.
+// Turndown converts <details> back to :::details syntax for the backend.
+const DetailsBlock = Node.create({
+  name: "detailsBlock",
+  group: "block",
+  atom: true,
+  selectable: true,
+
+  addAttributes() {
+    return {
+      summary: { default: "" },
+      bodyMd: { default: "" },
+    }
+  },
+
+  parseHTML() {
+    return [{
+      tag: "details",
+      getAttrs: (el) => {
+        const summaryEl = el.querySelector("summary")
+        const bodyEl = el.querySelector(".wiki-details-body")
+        const summary = summaryEl?.textContent?.trim() || ""
+        // Prefer the raw Markdown stored in data-body-md; fall back to textContent.
+        const bodyMd = bodyEl?.getAttribute("data-body-md") || bodyEl?.textContent?.trim() || ""
+        return { summary, bodyMd }
+      },
+    }]
+  },
+
+  renderHTML({ node }) {
+    return [
+      "details", {},
+      ["summary", {}, node.attrs.summary],
+      // Store the body Markdown in data-body-md for the editor to recover.
+      // The text content mirrors it so Turndown can also read it directly.
+      ["div", { class: "wiki-details-body", "data-body-md": node.attrs.bodyMd }, node.attrs.bodyMd],
+    ]
+  },
+
+  addNodeView() {
+    return ({ node, editor, getPos }) => {
+      const dom = document.createElement("div")
+      dom.className = "wiki-details-node"
+      dom.contentEditable = "false"
+
+      const header = document.createElement("div")
+      header.className = "wiki-details-node-header"
+
+      const icon = document.createElement("span")
+      icon.textContent = "▸ "
+
+      const label = document.createElement("strong")
+      label.textContent = node.attrs.summary || "(collapsible section)"
+
+      const editBtn = document.createElement("button")
+      editBtn.type = "button"
+      editBtn.className = "wiki-details-edit-btn"
+      editBtn.textContent = "Edit"
+
+      const removeBtn = document.createElement("button")
+      removeBtn.type = "button"
+      removeBtn.className = "wiki-details-remove-btn"
+      removeBtn.textContent = "Remove"
+
+      header.append(icon, label, editBtn, removeBtn)
+      dom.appendChild(header)
+
+      removeBtn.addEventListener("click", (e) => {
+        e.preventDefault()
+        const pos = getPos()
+        editor.chain().focus().deleteRange({ from: pos, to: pos + node.nodeSize }).run()
+      })
+
+      editBtn.addEventListener("click", (e) => {
+        e.preventDefault()
+        dom.dispatchEvent(new CustomEvent("wiki:details-edit", {
+          detail: { summary: node.attrs.summary, bodyMd: node.attrs.bodyMd, getPos },
+          bubbles: true,
+        }))
+      })
+
+      return { dom }
+    }
+  },
+})
+
 const EmbedPlaceholder = Node.create({
   name: "embedPlaceholder",
   group: "block",
@@ -99,6 +313,8 @@ export default class extends Controller {
     "editor", "input",
     "linkModal", "linkText", "linkUrl", "unlinkBtn", "linkBubble",
     "embedModal", "embedCode",
+    "mathModal", "mathLatex", "mathType",
+    "detailsModal", "detailsSummary", "detailsBody",
     "draftLinkWrap", "draftLink",
   ]
   static values = { draftKey: String }
@@ -122,6 +338,9 @@ export default class extends Controller {
           HTMLAttributes: {},
         }),
         EmbedPlaceholder,
+        MathInline,
+        MathBlock,
+        DetailsBlock,
         Extension.create({
           name: "wikiShortcuts",
           addKeyboardShortcuts() {
@@ -192,6 +411,22 @@ export default class extends Controller {
     this.boundEmbedEdit = this.handleEmbedEdit.bind(this)
     this.editorTarget.addEventListener("wiki:embed-edit", this.boundEmbedEdit)
 
+    this.boundMathEdit = this.handleMathEdit.bind(this)
+    this.editorTarget.addEventListener("wiki:math-edit", this.boundMathEdit)
+
+    this.boundDetailsEdit = this.handleDetailsEdit.bind(this)
+    this.editorTarget.addEventListener("wiki:details-edit", this.boundDetailsEdit)
+
+    if (this.hasMathModalTarget) {
+      this.boundMathModalKeydown = this.handleMathModalKeydown.bind(this)
+      this.mathModalTarget.addEventListener("keydown", this.boundMathModalKeydown)
+    }
+
+    if (this.hasDetailsModalTarget) {
+      this.boundDetailsModalKeydown = this.handleDetailsModalKeydown.bind(this)
+      this.detailsModalTarget.addEventListener("keydown", this.boundDetailsModalKeydown)
+    }
+
     if (this.hasDraftKeyValue) {
       this.boundFormDraft = this.scheduleSaveDraft.bind(this)
       this.form?.addEventListener("input", this.boundFormDraft)
@@ -211,6 +446,14 @@ export default class extends Controller {
       this.embedModalTarget?.removeEventListener("keydown", this.boundEmbedModalKeydown)
     }
     this.editorTarget?.removeEventListener("wiki:embed-edit", this.boundEmbedEdit)
+    this.editorTarget?.removeEventListener("wiki:math-edit", this.boundMathEdit)
+    this.editorTarget?.removeEventListener("wiki:details-edit", this.boundDetailsEdit)
+    if (this.hasMathModalTarget) {
+      this.mathModalTarget?.removeEventListener("keydown", this.boundMathModalKeydown)
+    }
+    if (this.hasDetailsModalTarget) {
+      this.detailsModalTarget?.removeEventListener("keydown", this.boundDetailsModalKeydown)
+    }
     if (this.boundFormDraft) this.form?.removeEventListener("input", this.boundFormDraft)
     if (this.draftSaveTimeout) clearTimeout(this.draftSaveTimeout)
   }
@@ -426,6 +669,116 @@ export default class extends Controller {
     if (e.key === "Escape") { e.preventDefault(); this.closeEmbedModal() }
   }
 
+  // --- Math ---
+
+  openMathModal(e) {
+    e?.preventDefault()
+    this.editingMathGetPos = null
+    this.editingMathType = "inline"
+    if (this.hasMathLatexTarget) this.mathLatexTarget.value = ""
+    if (this.hasMathTypeTarget) this.mathTypeTarget.value = "inline"
+    if (this.hasMathModalTarget) this.mathModalTarget.hidden = false
+    if (this.hasMathLatexTarget) this.mathLatexTarget.focus()
+  }
+
+  closeMathModal(e) {
+    e?.preventDefault()
+    if (this.hasMathModalTarget) this.mathModalTarget.hidden = true
+    this.editingMathGetPos = null
+    this.editor.chain().focus().run()
+  }
+
+  handleMathEdit(e) {
+    const { latex, type, getPos } = e.detail
+    this.editingMathGetPos = getPos
+    this.editingMathType = type
+    if (this.hasMathLatexTarget) this.mathLatexTarget.value = latex
+    if (this.hasMathTypeTarget) this.mathTypeTarget.value = type
+    if (this.hasMathModalTarget) this.mathModalTarget.hidden = false
+    if (this.hasMathLatexTarget) this.mathLatexTarget.focus()
+  }
+
+  applyMath(e) {
+    e?.preventDefault()
+    const latex = this.hasMathLatexTarget ? this.mathLatexTarget.value.trim() : ""
+    const type = this.hasMathTypeTarget ? this.mathTypeTarget.value : (this.editingMathType || "inline")
+    if (!latex) { this.closeMathModal(); return }
+
+    if (this.editingMathGetPos) {
+      const pos = this.editingMathGetPos()
+      const node = this.editor.state.doc.nodeAt(pos)
+      const size = node ? node.nodeSize : 1
+      this.editor.chain().focus()
+        .deleteRange({ from: pos, to: pos + size })
+        .insertContentAt(pos, { type: type === "block" ? "mathBlock" : "mathInline", attrs: { latex } })
+        .run()
+    } else if (type === "block") {
+      this.editor.chain().focus().insertContent({ type: "mathBlock", attrs: { latex } }).run()
+    } else {
+      this.editor.chain().focus().insertContent({ type: "mathInline", attrs: { latex } }).run()
+    }
+
+    this.closeMathModal()
+  }
+
+  handleMathModalKeydown(e) {
+    if (e.key === "Escape") { e.preventDefault(); this.closeMathModal() }
+  }
+
+  // --- Details (collapsible sections) ---
+
+  openDetailsModal(e) {
+    e?.preventDefault()
+    this.editingDetailsGetPos = null
+    if (this.hasDetailsSummaryTarget) this.detailsSummaryTarget.value = ""
+    if (this.hasDetailsBodyTarget) this.detailsBodyTarget.value = ""
+    if (this.hasDetailsModalTarget) this.detailsModalTarget.hidden = false
+    if (this.hasDetailsSummaryTarget) this.detailsSummaryTarget.focus()
+  }
+
+  closeDetailsModal(e) {
+    e?.preventDefault()
+    if (this.hasDetailsModalTarget) this.detailsModalTarget.hidden = true
+    this.editingDetailsGetPos = null
+    this.editor.chain().focus().run()
+  }
+
+  handleDetailsEdit(e) {
+    const { summary, bodyMd, getPos } = e.detail
+    this.editingDetailsGetPos = getPos
+    if (this.hasDetailsSummaryTarget) this.detailsSummaryTarget.value = summary || ""
+    if (this.hasDetailsBodyTarget) this.detailsBodyTarget.value = bodyMd || ""
+    if (this.hasDetailsModalTarget) this.detailsModalTarget.hidden = false
+    if (this.hasDetailsSummaryTarget) this.detailsSummaryTarget.focus()
+  }
+
+  applyDetails(e) {
+    e?.preventDefault()
+    const summary = this.hasDetailsSummaryTarget ? this.detailsSummaryTarget.value.trim() : ""
+    const bodyMd = this.hasDetailsBodyTarget ? this.detailsBodyTarget.value.trim() : ""
+    if (!summary) { this.closeDetailsModal(); return }
+
+    const nodeData = { type: "detailsBlock", attrs: { summary, bodyMd } }
+
+    if (this.editingDetailsGetPos) {
+      const pos = this.editingDetailsGetPos()
+      const node = this.editor.state.doc.nodeAt(pos)
+      const size = node ? node.nodeSize : 1
+      this.editor.chain().focus()
+        .deleteRange({ from: pos, to: pos + size })
+        .insertContentAt(pos, nodeData)
+        .run()
+    } else {
+      this.editor.chain().focus().insertContent(nodeData).run()
+    }
+
+    this.closeDetailsModal()
+  }
+
+  handleDetailsModalKeydown(e) {
+    if (e.key === "Escape") { e.preventDefault(); this.closeDetailsModal() }
+  }
+
   // --- Submit ---
 
   handleSubmit() {
@@ -459,6 +812,32 @@ export default class extends Controller {
           const iframeHtml = decodeURIComponent(escape(atob(encoded)))
           return `\n<div class="wiki-embed-wrapper">${iframeHtml}</div>\n`
         } catch { return "" }
+      },
+    })
+    service.addRule("mathInline", {
+      filter: (node) => node.nodeName === "SPAN" && node.classList?.contains("math-inline"),
+      replacement: (_content, node) => {
+        const raw = node.textContent || ""
+        const latex = raw.replace(/^\\\(/, "").replace(/\\\)$/, "")
+        return `$${latex}$`
+      },
+    })
+    service.addRule("mathBlock", {
+      filter: (node) => node.nodeName === "DIV" && node.classList?.contains("math-block"),
+      replacement: (_content, node) => {
+        const raw = node.textContent || ""
+        const latex = raw.replace(/^\\\[/, "").replace(/\\\]$/, "")
+        return `\n\n$$${latex}$$\n\n`
+      },
+    })
+    service.addRule("details", {
+      filter: "details",
+      replacement: (_content, node) => {
+        const summary = node.querySelector("summary")?.textContent?.trim() || ""
+        const bodyEl = node.querySelector(".wiki-details-body")
+        // Read the original Markdown from data-body-md; fall back to textContent.
+        const body = bodyEl?.getAttribute("data-body-md") || bodyEl?.textContent?.trim() || ""
+        return `\n\n:::details ${summary}\n${body}\n:::\n\n`
       },
     })
     try {

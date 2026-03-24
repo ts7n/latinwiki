@@ -5,7 +5,7 @@
   <%= render "shared/wiki_sidebar", current_page: @page %>
   <div class="wiki-content">
     <div class="wiki-content-main">
-      <article class="wiki-article" data-controller="link-preview">
+      <article class="wiki-article" data-controller="link-preview wiki-render">
         <h1 class="wiki-article-title"><%= @page.title %></h1>
         <%= @content %>
       </article>
