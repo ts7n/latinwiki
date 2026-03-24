@@ -1438,6 +1438,113 @@ body::before {
     border-color: #c99;
   }
 
+  /* ── Math node styles (editor) ─────────────────────────────────────────── */
+  .wiki-math-inline-node {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25em;
+    padding: 0.1em 0.4em;
+    background: #f5f0ff;
+    border: 1px dashed #a070d0;
+    border-radius: 3px;
+    font-family: ui-monospace, monospace;
+    font-size: 0.9em;
+    color: #5a0f90;
+    vertical-align: baseline;
+    cursor: default;
+    user-select: none;
+  }
+
+  .wiki-math-block-node {
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+    padding: 0.5em 1em;
+    background: #f5f0ff;
+    border: 1px dashed #a070d0;
+    border-radius: 4px;
+    margin: 0.5em 0;
+    cursor: default;
+    user-select: none;
+  }
+
+  .wiki-math-block-preview {
+    font-family: ui-monospace, monospace;
+    font-size: 0.85em;
+    color: #5a0f90;
+    flex: 1;
+  }
+
+  .wiki-math-edit-btn,
+  .wiki-math-remove-btn {
+    padding: 0.15em 0.4em;
+    font-size: 0.8em;
+    border: 1px solid #a070d0;
+    background: #fff;
+    cursor: pointer;
+    border-radius: 3px;
+    color: #5a0f90;
+    flex-shrink: 0;
+  }
+
+  .wiki-math-edit-btn:hover,
+  .wiki-math-remove-btn:hover {
+    background: #ede8ff;
+  }
+
+  .wiki-math-remove-btn {
+    color: #b00;
+    border-color: #c99;
+  }
+
+  /* ── Details (collapsible) node styles (editor) ─────────────────────────── */
+  .wiki-details-node {
+    border: 1px dashed #888;
+    border-radius: 4px;
+    background: #f9f9f9;
+    margin: 0.5em 0;
+    cursor: default;
+    user-select: none;
+  }
+
+  .wiki-details-node-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+    padding: 0.4em 0.75em;
+    flex-wrap: wrap;
+  }
+
+  .wiki-details-edit-btn,
+  .wiki-details-remove-btn {
+    padding: 0.15em 0.4em;
+    font-size: 0.8em;
+    border: 1px solid #999;
+    background: #fff;
+    cursor: pointer;
+    border-radius: 3px;
+  }
+
+  .wiki-details-edit-btn:hover,
+  .wiki-details-remove-btn:hover {
+    background: #eaeaea;
+  }
+
+  .wiki-details-remove-btn {
+    color: #b00;
+    border-color: #c99;
+  }
+
+  /* ── Modal extras (select, textarea within modals) ──────────────────────── */
+  .wiki-link-modal-select {
+    width: 100%;
+    padding: 0.4em 0.5em;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    font-size: 0.95em;
+    background: #fff;
+  }
+
   .wiki-editor-btn--active {
     background: #ddd !important;
     border-color: #888 !important;
@@ -1858,6 +1965,109 @@ body::before {
     height: 100%;
     border: 0;
   }
+
+  /* ── Tables ────────────────────────────────────────────────────────────── */
+  .wiki-article table {
+    border-collapse: collapse;
+    margin: 1em 0;
+    width: 100%;
+    font-size: 0.95em;
+    overflow-x: auto;
+    display: block;
+  }
+
+  .wiki-article table th,
+  .wiki-article table td {
+    border: 1px solid #ccc;
+    padding: 0.4em 0.75em;
+    text-align: left;
+    vertical-align: top;
+  }
+
+  .wiki-article table th {
+    background: #f0f0f0;
+    font-weight: 600;
+  }
+
+  .wiki-article table tr:nth-child(even) td {
+    background: #fafafa;
+  }
+
+  /* ── Mermaid diagrams ──────────────────────────────────────────────────── */
+  .wiki-article .wiki-mermaid {
+    margin: 1em 0;
+    overflow-x: auto;
+  }
+
+  .wiki-article .wiki-mermaid svg {
+    max-width: 100%;
+    height: auto;
+  }
+
+  .wiki-article .wiki-mermaid--error {
+    font-family: monospace;
+    background: #fff8f0;
+    border: 1px solid #f90;
+    padding: 0.75em 1em;
+    color: #a60;
+    white-space: pre-wrap;
+  }
+
+  /* ── LaTeX math ────────────────────────────────────────────────────────── */
+  .wiki-article .math-block {
+    margin: 1em 0;
+    overflow-x: auto;
+    text-align: center;
+  }
+
+  .wiki-article .math-inline {
+    font-size: 0.95em;
+  }
+
+  /* ── Collapsible sections (<details>/<summary>) ────────────────────────── */
+  .wiki-article details {
+    margin: 0.75em 0;
+    border: 1px solid #ddd;
+    border-radius: 3px;
+  }
+
+  .wiki-article details summary {
+    padding: 0.5em 0.75em;
+    font-weight: 600;
+    cursor: pointer;
+    user-select: none;
+    background: #f6f6f6;
+    border-radius: 3px;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 0.4em;
+  }
+
+  .wiki-article details summary::-webkit-details-marker { display: none; }
+
+  .wiki-article details summary::before {
+    content: "▸";
+    font-size: 0.8em;
+    transition: transform 0.15s;
+    display: inline-block;
+  }
+
+  .wiki-article details[open] summary::before {
+    transform: rotate(90deg);
+  }
+
+  .wiki-article details[open] summary {
+    border-bottom: 1px solid #ddd;
+    border-radius: 3px 3px 0 0;
+  }
+
+  .wiki-article .wiki-details-body {
+    padding: 0.5em 1em;
+  }
+
+  .wiki-article .wiki-details-body > :first-child { margin-top: 0; }
+  .wiki-article .wiki-details-body > :last-child  { margin-bottom: 0; }
 }
 
 /* Mobile header - hidden on desktop */
