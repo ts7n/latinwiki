@@ -65,16 +65,39 @@ module WikiMarkdown
   # Extract :::details … ::: blocks so that their Markdown body is rendered
   # by a nested Redcarpet pass rather than being swallowed by the HTML-block
   # passthrough rule.
+  # Uses line-by-line scanning (O(n)) to avoid ReDoS on adversarial input.
   def self.extract_details(content)
     details_stash = []
+    lines = content.split(/\n/, -1)
+    output_lines = []
+    i = 0
 
-    content = content.gsub(/^:::details[ \t]+(.*?)\n(.*?)^:::[ \t]*\n?/m) do
-      idx = details_stash.size
-      details_stash << { summary: Regexp.last_match(1).strip, body: Regexp.last_match(2) }
-      "WIKIDETAILS#{idx}ENDDETAILS\n"
+    while i < lines.size
+      match = lines[i].match(/\A:::details[ \t]+(.+)/)
+      if match
+        summary = match[1].rstrip
+        i += 1
+        body_lines = []
+
+        while i < lines.size
+          break if lines[i].match(/\A:::[ \t]*\z/)
+          body_lines << lines[i]
+          i += 1
+        end
+
+        idx = details_stash.size
+        details_stash << { summary: summary, body: "#{body_lines.join("\n")}\n" }
+        output_lines << ""
+        output_lines << "WIKIDETAILS#{idx}ENDDETAILS"
+        output_lines << ""
+        i += 1 # consume the closing :::
+      else
+        output_lines << lines[i]
+        i += 1
+      end
     end
 
-    [ content, details_stash ]
+    [ output_lines.join("\n"), details_stash ]
   end
 
   def self.restore_details(html, details_stash)
@@ -87,8 +110,10 @@ module WikiMarkdown
       idx = (Regexp.last_match(1) || Regexp.last_match(2)).to_i
       info = details_stash[idx]
       summary_escaped = ERB::Util.html_escape(info[:summary])
+      body_md_escaped = ERB::Util.html_escape(info[:body].to_s.strip)
       body_html = body_markdown.render(info[:body] || "")
-      "<details>\n<summary>#{summary_escaped}</summary>\n<div class=\"wiki-details-body\">#{body_html}</div>\n</details>"
+      # data-body-md stores the raw Markdown so the editor can round-trip it.
+      "<details>\n<summary>#{summary_escaped}</summary>\n<div class=\"wiki-details-body\" data-body-md=\"#{body_md_escaped}\">#{body_html}</div>\n</details>"
     end
   end
 

@@ -130,8 +130,10 @@ const MathBlock = Node.create({
 
 // ─── DetailsBlock ────────────────────────────────────────────────────────────
 // Preserves collapsible <details>/<summary> blocks through the editor round-trip.
-// The backend produces <details><summary>…</summary><div class="wiki-details-body">…</div></details>
-// Turndown converts <details> back to :::details syntax understood by the backend.
+// The backend produces <details><summary>…</summary><div class="wiki-details-body" data-body-md="…">…</div></details>
+// The raw Markdown for the body is stored in data-body-md so the editor can
+// preserve it without needing to parse the rendered HTML back into Markdown.
+// Turndown converts <details> back to :::details syntax for the backend.
 const DetailsBlock = Node.create({
   name: "detailsBlock",
   group: "block",
@@ -141,7 +143,7 @@ const DetailsBlock = Node.create({
   addAttributes() {
     return {
       summary: { default: "" },
-      bodyHtml: { default: "" },
+      bodyMd: { default: "" },
     }
   },
 
@@ -152,8 +154,9 @@ const DetailsBlock = Node.create({
         const summaryEl = el.querySelector("summary")
         const bodyEl = el.querySelector(".wiki-details-body")
         const summary = summaryEl?.textContent?.trim() || ""
-        const bodyHtml = bodyEl ? bodyEl.innerHTML : ""
-        return { summary, bodyHtml }
+        // Prefer the raw Markdown stored in data-body-md; fall back to textContent.
+        const bodyMd = bodyEl?.getAttribute("data-body-md") || bodyEl?.textContent?.trim() || ""
+        return { summary, bodyMd }
       },
     }]
   },
@@ -162,7 +165,9 @@ const DetailsBlock = Node.create({
     return [
       "details", {},
       ["summary", {}, node.attrs.summary],
-      ["div", { class: "wiki-details-body" }, node.attrs.bodyHtml],
+      // Store the body Markdown in data-body-md for the editor to recover.
+      // The text content mirrors it so Turndown can also read it directly.
+      ["div", { class: "wiki-details-body", "data-body-md": node.attrs.bodyMd }, node.attrs.bodyMd],
     ]
   },
 
@@ -203,7 +208,7 @@ const DetailsBlock = Node.create({
       editBtn.addEventListener("click", (e) => {
         e.preventDefault()
         dom.dispatchEvent(new CustomEvent("wiki:details-edit", {
-          detail: { summary: node.attrs.summary, bodyHtml: node.attrs.bodyHtml, getPos },
+          detail: { summary: node.attrs.summary, bodyMd: node.attrs.bodyMd, getPos },
           bubbles: true,
         }))
       })
@@ -739,10 +744,10 @@ export default class extends Controller {
   }
 
   handleDetailsEdit(e) {
-    const { summary, bodyHtml, getPos } = e.detail
+    const { summary, bodyMd, getPos } = e.detail
     this.editingDetailsGetPos = getPos
     if (this.hasDetailsSummaryTarget) this.detailsSummaryTarget.value = summary || ""
-    if (this.hasDetailsBodyTarget) this.detailsBodyTarget.value = bodyHtml || ""
+    if (this.hasDetailsBodyTarget) this.detailsBodyTarget.value = bodyMd || ""
     if (this.hasDetailsModalTarget) this.detailsModalTarget.hidden = false
     if (this.hasDetailsSummaryTarget) this.detailsSummaryTarget.focus()
   }
@@ -750,10 +755,10 @@ export default class extends Controller {
   applyDetails(e) {
     e?.preventDefault()
     const summary = this.hasDetailsSummaryTarget ? this.detailsSummaryTarget.value.trim() : ""
-    const bodyHtml = this.hasDetailsBodyTarget ? this.detailsBodyTarget.value.trim() : ""
+    const bodyMd = this.hasDetailsBodyTarget ? this.detailsBodyTarget.value.trim() : ""
     if (!summary) { this.closeDetailsModal(); return }
 
-    const nodeData = { type: "detailsBlock", attrs: { summary, bodyHtml } }
+    const nodeData = { type: "detailsBlock", attrs: { summary, bodyMd } }
 
     if (this.editingDetailsGetPos) {
       const pos = this.editingDetailsGetPos()
@@ -830,7 +835,8 @@ export default class extends Controller {
       replacement: (_content, node) => {
         const summary = node.querySelector("summary")?.textContent?.trim() || ""
         const bodyEl = node.querySelector(".wiki-details-body")
-        const body = bodyEl ? bodyEl.innerHTML.trim() : ""
+        // Read the original Markdown from data-body-md; fall back to textContent.
+        const body = bodyEl?.getAttribute("data-body-md") || bodyEl?.textContent?.trim() || ""
         return `\n\n:::details ${summary}\n${body}\n:::\n\n`
       },
     })

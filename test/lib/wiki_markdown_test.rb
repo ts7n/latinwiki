@@ -82,6 +82,7 @@ class WikiMarkdownTest < ActiveSupport::TestCase
     assert_includes html, "<details>"
     assert_includes html, "<summary>Click to expand</summary>"
     assert_includes html, "Hidden content here."
+    assert_includes html, "wiki-details-body"
   end
 
   test "renders markdown inside :::details body" do

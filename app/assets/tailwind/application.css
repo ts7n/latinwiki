@@ -1970,10 +1970,8 @@ body::before {
   .wiki-article table {
     border-collapse: collapse;
     margin: 1em 0;
-    width: 100%;
+    max-width: 100%;
     font-size: 0.95em;
-    overflow-x: auto;
-    display: block;
   }
 
   .wiki-article table th,
