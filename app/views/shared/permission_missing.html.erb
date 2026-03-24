@@ -1,4 +1,4 @@
-<% content_for :title, "Sign in required - LatinWiki" %>
+<% content_for :title, "Sign in required - #{wiki_name}" %>
 <div class="wiki-layout">
   <%= render "shared/wiki_sidebar" %>
   <div class="wiki-content">
@@ -6,7 +6,7 @@
       <div class="wiki-page-header">
         <h1 class="wiki-page-title">Sign in required</h1>
       </div>
-      <p class="wiki-permission-missing-message">All Latin students, faculty/staff, and alumni can access this feature below.</p>
+      <div class="wiki-permission-missing-message"><%= sanitize wiki_sign_in_required_message, tags: %w[p br a strong em b i u ul ol li span], attributes: %w[href class title rel target] %></div>
       <%= button_to "Sign in with Google", "/auth/google_oauth2", method: :post, data: { turbo: false }, class: "wiki-permission-missing-btn" %>
     </div>
   </div>

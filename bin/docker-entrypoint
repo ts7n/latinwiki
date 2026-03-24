@@ -1,7 +1,10 @@
 #!/bin/bash -e
 
-# If running the rails server then create or migrate existing database
-if [ "${@: -2:1}" == "./bin/rails" ] && [ "${@: -1:1}" == "server" ]; then
+# If starting the Rails/Puma server, ensure DB exists and migrations are applied.
+# Matches: ./bin/rails server [...]  or  ./bin/thrust ./bin/rails server
+if [ "${1:-}" = "./bin/rails" ] && [ "${2:-}" = "server" ]; then
+  ./bin/rails db:prepare
+elif [ "${1:-}" = "./bin/thrust" ]; then
   ./bin/rails db:prepare
 fi
 

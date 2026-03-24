@@ -1,0 +1,33 @@
+# Wiki branding, access control, and section layout (single static config file).
+wiki_name: "LatinWiki"
+accent_color: "#e65100"
+
+# Domains allowed to sign in (must match the part after @ in the email).
+user_domains:
+  - lsoc.org
+  - latinschool.org
+
+# Subset of user_domains that may create pages and moderate (plus admins).
+moderator_domains:
+  - latinschool.org
+
+# Optional display labels keyed by email domain (for user profile UI).
+role_labels:
+  latinschool.org: "Faculty/Staff"
+  lsoc.org: "Student"
+
+sections:
+  - slug: meta
+    name: Meta
+    createable: false
+  - slug: subjects
+    name: Subjects
+    createable: true
+
+default_path: meta/introduction
+
+# Shown on the "Sign in required" page under the heading (HTML allowed).
+sign_in_required_message: "All Latin students, faculty/staff, and alumni can access this feature below."
+
+# Flash alert when Google sign-in succeeds but the email domain is not allowed (plain text).
+unauthorized_domain_message: "This email is not authorized to login. If you're currently at Latin, you need to sign in with your school Google account. If you're an alumni, see the homepage for access instructions."

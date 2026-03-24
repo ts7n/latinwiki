@@ -3,6 +3,8 @@
 require "ostruct"
 
 class PagesController < ApplicationController
+  include Pages::AuditLogging
+
   before_action :skip_set_page_for_new, only: [ :edit ]
   before_action :set_page, only: [ :show, :edit, :update, :diff, :history, :destroy ]
   after_action :log_audit, only: [ :create, :update, :destroy ]
@@ -36,22 +38,14 @@ class PagesController < ApplicationController
       redirect_to doc_path(path: @page.path), alert: "Cannot edit file-based pages."
       return
     end
-    if session[:merge_draft].present? && session[:merge_draft]["path"] == @page.path
-      draft = session[:merge_draft]
-      @merge_conflict = true
-      @content_html = WikiMarkdown.render(@page.content)[:html]
-      @edit_title = @page.title
-      @edit_rationale = nil
-      @merge_draft_content = draft["content"].to_s
-      @merge_draft_title = draft["title"].to_s
-      @merge_draft_rationale = draft["rationale"].to_s
-      @merge_diff = Diffy::Diff.new(normalize_for_diff(@page.content), normalize_for_diff(@merge_draft_content))
-    else
-      @merge_conflict = false
-      @content_html = WikiMarkdown.render(page_content)[:html]
-      @edit_title = @page.title
-      @edit_rationale = nil
-    end
+
+    merge_state = Pages::MergeEditState.assign_for(
+      page: @page,
+      page_content: page_content,
+      merge_draft: session[:merge_draft]
+    )
+    merge_state.each { |key, value| instance_variable_set("@#{key}", value) }
+
     @base_version = @page.versions.maximum(:version_number)
     @pages_for_sidebar = pages_for_sidebar
   end
@@ -68,37 +62,20 @@ class PagesController < ApplicationController
   end
 
   def diff
-    unless @page.is_a?(Page)
-      redirect_to doc_path(path: @page.path), alert: "Version history not available for file-based pages."
+    result = Pages::VersionDiffBuilder.new(
+      page: @page,
+      version_number: params[:v],
+      with_param: params[:with]
+    ).call
+
+    unless result[:success]
+      redirect_to doc_path(path: @page.path), alert: result[:alert]
       return
     end
-    @version = @page.versions.find_by(version_number: params[:v])
-    unless @version
-      redirect_to doc_path(path: @page.path), alert: "Version not found."
-      return
-    end
-    case params[:with]
-    when "prev"
-      @other_version = @page.versions.find_by(version_number: @version.version_number - 1)
-      @other_content = @other_version&.content || ""
-      @other_label = @other_version ? "v#{@other_version.version_number} (prev)" : "(none)"
-    when "current"
-      @other_content = @page.content
-      @other_label = "current (newest)"
-    else
-      redirect_to doc_path(path: @page.path), alert: "Invalid diff."
-      return
-    end
-    if params[:with] == "prev"
-      from_content = @other_content
-      to_content = @version.content
-      @diff_label = "v#{@other_version&.version_number || "?"} → v#{@version.version_number}"
-    else
-      from_content = @version.content
-      to_content = @other_content
-      @diff_label = "v#{@version.version_number} → current"
-    end
-    @diff = Diffy::Diff.new(normalize_for_diff(from_content), normalize_for_diff(to_content))
+
+    @version = result[:version]
+    @diff = result[:diff]
+    @diff_label = result[:diff_label]
     @pages_for_sidebar ||= pages_for_sidebar
   end
 
@@ -107,71 +84,42 @@ class PagesController < ApplicationController
       redirect_to root_path
       return
     end
-    section_slug = params[:page][:section].presence
-    title = params[:page][:title].to_s.strip
-    content = params[:page][:content].to_s
-    rationale = params[:page][:rationale].to_s.strip.presence
 
-    if title.blank?
-      @creating = true
-      @content_html = content.blank? ? "" : WikiMarkdown.render(content)[:html]
-      @pages_for_sidebar = pages_for_sidebar
-      flash.now[:alert] = "Title is required."
-      render :edit, status: :unprocessable_entity
-      return
-    end
+    result = Pages::PageCreator.new(
+      wiki_sections: wiki_sections,
+      page_params: page_params_for_create
+    ).call
 
-    slug = title.parameterize.presence || "page"
-    parent = nil
-    if section_slug.present?
-      section_config = wiki_sections.find { |s| s[:slug].to_s == section_slug }
-      if section_config && (section_config[:createable] == false || section_config["createable"] == false)
-        @creating = true
-        @content_html = content.blank? ? "" : WikiMarkdown.render(content)[:html]
-        @pages_for_sidebar = pages_for_sidebar
-        flash.now[:alert] = "You cannot create pages in that section."
-        render :edit, status: :unprocessable_entity
-        return
-      end
-      parent = Page.root_pages.find_by(slug: section_slug) if Page.table_exists?
-      unless parent
-        section_title = section_config&.dig(:name) || section_slug.titleize
-        parent = Page.create!(slug: section_slug, title: section_title, content: "")
-      end
-    end
-
-    page = Page.new(title: title, slug: slug, content: content, parent: parent)
-    page.rationale = rationale
-    if page.save
-      @created_page_path = page.path
-      @created_page_title = page.title
-      redirect_to doc_path(path: page.path), notice: "Page published.", status: :see_other
+    if result.success
+      @created_page_path = result.page.path
+      @created_page_title = result.page.title
+      redirect_to doc_path(path: result.redirect_path), notice: result.notice, status: :see_other
     else
-      @creating = true
-      @content_html = content.blank? ? "" : WikiMarkdown.render(content)[:html]
+      result.edit_locals.each { |key, value| instance_variable_set("@#{key}", value) }
       @pages_for_sidebar = pages_for_sidebar
-      flash.now[:alert] = page.errors.full_messages.to_sentence
+      flash.now[:alert] = result.alert
       render :edit, status: :unprocessable_entity
     end
   end
 
   def update
     if @page.is_a?(Page)
-      base_version = params[:page][:base_version].to_i
+      base_version = page_params_for_update[:base_version].to_i
       current_version = @page.versions.maximum(:version_number).to_i
       resolving = params[:resolve] == "1"
 
       unless resolving
         if base_version > 0 && base_version < current_version
-          prepare_merge_conflict
+          Pages::MergeConflictDraft.store!(session, page: @page, page_params: page_params_for_update)
+          redirect_to edit_doc_path(helpers.edit_doc_query(@page.path)), status: :see_other
           return
         end
       end
 
-      @page.title = params[:page][:title]
-      @page.content = params[:page][:content]
+      @page.title = page_params_for_update[:title]
+      @page.content = page_params_for_update[:content]
       if @page.save
-        rationale = params[:page][:rationale].to_s.strip.presence
+        rationale = page_params_for_update[:rationale].to_s.strip.presence
         @page.versions.create!(
           title: @page.title,
           content: @page.content,
@@ -200,10 +148,18 @@ class PagesController < ApplicationController
       return
     end
     @page.destroy
-    redirect_to root_path, notice: "Page "#{@page.title}" deleted.", status: :see_other
+    redirect_to root_path, notice: %(Page "#{@page.title}" deleted.), status: :see_other
   end
 
   private
+
+  def page_params_for_create
+    params.require(:page).permit(:section, :title, :content, :rationale)
+  end
+
+  def page_params_for_update
+    params.require(:page).permit(:title, :content, :rationale, :base_version)
+  end
 
   def skip_set_page_for_new
     if params[:new] == "1"
@@ -216,93 +172,37 @@ class PagesController < ApplicationController
   def set_page
     return if @creating
 
+    path_str = resolved_path_str
+
+    resolution = Pages::PageResolver.new(
+      path_str: path_str,
+      wiki_sections: Rails.application.config.wiki_sections || [],
+      table_exists: Page.table_exists?
+    ).call
+
+    if resolution.redirect_to_doc?
+      redirect_to doc_path(path: resolution.redirect_path), status: :see_other
+      return
+    end
+    if resolution.not_found?
+      @pages_for_sidebar = pages_for_sidebar
+      render "pages/not_found", status: :not_found
+      return
+    end
+
+    @page = resolution.page
+  end
+
+  def resolved_path_str
     path_str = if params[:cat].present? || params[:pg].present?
       [ params[:cat], params[:pg] ].compact.join("/")
     else
       params[:path]
     end
-    path_str = path_str.presence || Rails.application.config.wiki_default_path
-
-    # Sections are not pages; bare /[section] URLs redirect to root
-    segments = path_str.to_s.split("/").reject(&:blank?)
-    section_slugs = (Rails.application.config.wiki_sections || []).map { |s| (s[:slug] || s["slug"]).to_s }
-    if segments.size == 1 && section_slugs.include?(segments.first)
-      redirect_to root_path and return
-    end
-
-    @page = Page.find_by_path(path_str) if Page.table_exists?
-
-    unless @page
-      slug = path_str.to_s.split("/").last
-      @page = load_page_from_file(slug)
-      if @page
-        @page.define_singleton_method(:path) { slug }
-      else
-        @pages_for_sidebar = pages_for_sidebar
-        render "pages/not_found", status: :not_found
-      end
-    end
+    path_str.presence || Rails.application.config.wiki_default_path
   end
 
   def page_content
     @page.content
-  end
-
-  def load_page_from_file(slug)
-    file_path = Rails.root.join("app", "docs", "#{slug}.md")
-    return nil unless File.exist?(file_path)
-
-    content = File.read(file_path)
-    title = content.lines.first.to_s.sub(/\A#+\s*/, "").strip.presence || slug.titleize
-    OpenStruct.new(title: title, slug: slug, content: content, id: nil)
-  end
-
-  def require_user
-    redirect_to doc_path(path: @page.path), alert: "Sign in to edit." unless current_user
-  end
-
-  def prepare_merge_conflict
-    session[:merge_draft] = {
-      "path" => @page.path,
-      "title" => params[:page][:title],
-      "content" => params[:page][:content],
-      "rationale" => params[:page][:rationale]
-    }
-    redirect_to edit_doc_path(helpers.edit_doc_query(@page.path)), status: :see_other
-  end
-
-  def log_audit
-    return unless current_user
-    return unless response.redirect? || response.successful?
-
-    page = @page.is_a?(Page) ? @page : nil
-    return unless page || action_name == "create"
-
-    metadata = {}
-    rationale = params.dig(:page, :rationale).to_s.strip.presence
-    metadata[:rationale] = rationale if rationale
-
-    AuditLog.create!(
-      user: current_user,
-      action: action_name,
-      page_path: page&.path || @created_page_path,
-      page_title: page&.title || @created_page_title,
-      ip_address: request.remote_ip,
-      user_agent: request.user_agent.to_s.truncate(500),
-      metadata: metadata.presence
-    )
-  rescue => e
-    Rails.logger.error("AuditLog failed: #{e.message}")
-  end
-
-  # Normalizes content before diffing: collapses redundant blank lines (3+ → 2),
-  # trims whitespace-only lines to empty, and strips leading/trailing blank lines.
-  def normalize_for_diff(content)
-    content.to_s
-      .lines(chomp: true)
-      .map { |line| line.match(/\A\s*\z/) ? "" : line }
-      .join("\n")
-      .gsub(/\n{3,}/, "\n\n")
-      .strip
   end
 end

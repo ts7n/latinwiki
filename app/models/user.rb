@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 class User < ApplicationRecord
   has_many :page_coordinators, dependent: :destroy
   has_many :coordinated_pages, through: :page_coordinators, source: :page
@@ -5,8 +7,12 @@ class User < ApplicationRecord
   def self.find_by_username(username)
     return nil if username.blank?
 
-    prefix = ActiveRecord::Base.sanitize_sql_like(username.to_s)
-    User.where("email LIKE ? AND (email LIKE '%@lsoc.org' OR email LIKE '%@latinschool.org')", "#{prefix}@%").first
+    prefix = username.to_s.strip
+    domains = Rails.application.config.wiki_user_domains
+    return nil if domains.blank?
+
+    emails = domains.map { |d| "#{prefix}@#{d}" }
+    where(email: emails).first
   end
 
   def username
@@ -18,10 +24,8 @@ class User < ApplicationRecord
   def role_label
     return nil if email.blank?
 
-    if email.end_with?("@latinschool.org")
-      "Faculty/Staff"
-    elsif email.end_with?("@lsoc.org")
-      "Student"
-    end
+    domain = email.split("@", 2).last.to_s
+    labels = Rails.application.config.wiki_role_labels
+    labels[domain] || labels[domain.to_s]
   end
 end

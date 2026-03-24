@@ -1,4 +1,4 @@
-<% content_for :title, "Search - LatinWiki" %>
+<% content_for :title, "Search - #{wiki_name}" %>
 <div class="wiki-layout">
   <%= render "shared/wiki_sidebar" %>
   <div class="wiki-content wiki-search-content">
@@ -38,8 +38,8 @@
               <% @pages.each do |page| %>
                 <li class="wiki-search-item">
                   <%= link_to page.title, doc_path(path: page.path), class: "wiki-search-link" %>
-                  <% if page.parent %>
-                    <span class="wiki-search-context">in <%= page.parent.title %></span>
+                  <% if page.section_slug.present? %>
+                    <span class="wiki-search-context">in <%= wiki_section_name(page.section_slug) %></span>
                   <% end %>
                   <% snippet = search_result_snippet(page, @query) %>
                   <% if snippet.present? %>

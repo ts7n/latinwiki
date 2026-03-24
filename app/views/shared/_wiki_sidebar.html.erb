@@ -4,7 +4,7 @@
       <h2 class="wiki-sidebar-title">
         <%= link_to root_path, class: "wiki-sidebar-title-link" do %>
           <img src="/icon.png" class="wiki-sidebar-logo" alt="">
-          <span class="wiki-sidebar-title-text">LatinWiki</span>
+          <span class="wiki-sidebar-title-text"><%= wiki_name %></span>
         <% end %>
       </h2>
       <div class="wiki-sidebar-actions">
@@ -15,8 +15,21 @@
       </div>
     </div>
     <ul class="wiki-nav-list">
-      <% pages_for_sidebar.each do |page| %>
-        <%= render "pages/sidebar_item", page: page, current_page: local_assigns[:current_page] %>
+      <% pages_for_sidebar.each do |group| %>
+        <li class="wiki-nav-group">
+          <div class="wiki-nav-section"><%= group[:name] %></div>
+          <% if group[:pages].any? %>
+            <ul class="wiki-nav-list wiki-nav-list--nested">
+              <% group[:pages].each do |page| %>
+                <% active = current_page && page.respond_to?(:path) && page.path == current_page.path %>
+                <% page_path = page.respond_to?(:path) ? page.path : "#{group[:slug]}/#{page.slug}" %>
+                <li>
+                  <%= link_to page.title, doc_path(path: page_path), class: "wiki-nav-link #{active ? 'wiki-nav-link--active' : ''}" %>
+                </li>
+              <% end %>
+            </ul>
+          <% end %>
+        </li>
       <% end %>
     </ul>
   </div>
