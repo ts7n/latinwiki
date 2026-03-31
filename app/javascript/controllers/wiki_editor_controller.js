@@ -2,7 +2,15 @@ import { Controller } from "@hotwired/stimulus"
 import { Editor, Node, Extension } from "@tiptap/core"
 import StarterKit from "@tiptap/starter-kit"
 import Link from "@tiptap/extension-link"
+import Table from "@tiptap/extension-table"
+import TableRow from "@tiptap/extension-table-row"
+import TableCell from "@tiptap/extension-table-cell"
+import TableHeader from "@tiptap/extension-table-header"
 import TurndownService from "turndown"
+import { gfm } from "turndown-plugin-gfm"
+import katex from "katex"
+
+// --- Embed Placeholder Node ---
 
 const EmbedPlaceholder = Node.create({
   name: "embedPlaceholder",
@@ -75,6 +83,10 @@ const EmbedPlaceholder = Node.create({
       inner.append(icon, preview, editBtn, removeBtn)
       dom.appendChild(inner)
 
+      const preventFocus = (e) => e.preventDefault()
+      editBtn.addEventListener("mousedown", preventFocus)
+      removeBtn.addEventListener("mousedown", preventFocus)
+
       editBtn.addEventListener("click", (e) => {
         e.preventDefault()
         dom.dispatchEvent(new CustomEvent("wiki:embed-edit", {
@@ -89,16 +101,223 @@ const EmbedPlaceholder = Node.create({
         editor.chain().focus().deleteRange({ from: pos, to: pos + node.nodeSize }).run()
       })
 
-      return { dom }
+      return {
+        dom,
+        ignoreMutation: () => true,
+        stopEvent: (event) => !!(event.target.closest && event.target.closest("button")),
+        selectNode: () => dom.classList.add("ProseMirror-selectednode"),
+        deselectNode: () => dom.classList.remove("ProseMirror-selectednode"),
+        destroy: () => {
+          editBtn.removeEventListener("mousedown", preventFocus)
+          removeBtn.removeEventListener("mousedown", preventFocus)
+        },
+      }
     }
   },
 })
+
+// --- Collapsible Details Node ---
+
+const CollapsibleDetails = Node.create({
+  name: "details",
+  group: "block",
+  content: "detailsSummary block+",
+  defining: true,
+
+  parseHTML() {
+    return [{ tag: "details" }]
+  },
+
+  renderHTML() {
+    return ["details", { class: "wiki-collapsible", open: true }, 0]
+  },
+
+  addNodeView() {
+    return ({ editor, getPos, node }) => {
+      const wrapper = document.createElement("div")
+      wrapper.className = "wiki-collapsible-wrapper"
+
+      const details = document.createElement("details")
+      details.className = "wiki-collapsible"
+      details.open = true
+
+      // Prevent the native <details> toggle — the editor controls open state
+      const preventToggle = (e) => {
+        if (e.target.closest && e.target.closest("summary")) e.preventDefault()
+      }
+      details.addEventListener("click", preventToggle)
+      details.addEventListener("toggle", () => { details.open = true })
+
+      const preventFocus = (e) => e.preventDefault()
+      const removeBtn = document.createElement("button")
+      removeBtn.type = "button"
+      removeBtn.className = "wiki-collapsible-remove-btn"
+      removeBtn.textContent = "×"
+      removeBtn.title = "Remove collapsible section"
+      removeBtn.contentEditable = "false"
+      removeBtn.addEventListener("mousedown", preventFocus)
+      removeBtn.addEventListener("click", (e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        const pos = getPos()
+        if (pos == null) return
+        const currentNode = editor.state.doc.nodeAt(pos)
+        if (!currentNode) return
+        editor.chain().focus().deleteRange({ from: pos, to: pos + currentNode.nodeSize }).run()
+      })
+
+      wrapper.appendChild(details)
+      wrapper.appendChild(removeBtn)
+
+      requestAnimationFrame(() => {
+        const summary = details.querySelector("summary")
+        if (summary) {
+          const h = summary.offsetHeight
+          removeBtn.style.height = h + "px"
+          removeBtn.style.width = h + "px"
+          removeBtn.style.maxHeight = "none"
+        }
+      })
+
+      return {
+        dom: wrapper,
+        contentDOM: details,
+        ignoreMutation: (mutation) => {
+          if (!details.contains(mutation.target)) return true
+          if (mutation.type === "attributes" && mutation.target === details) return true
+          return false
+        },
+        stopEvent: (event) => !!(event.target.closest && event.target.closest(".wiki-collapsible-remove-btn")),
+        destroy: () => {
+          details.removeEventListener("click", preventToggle)
+          removeBtn.removeEventListener("mousedown", preventFocus)
+        },
+      }
+    }
+  },
+})
+
+const DetailsSummary = Node.create({
+  name: "detailsSummary",
+  content: "inline*",
+  defining: true,
+
+  parseHTML() {
+    return [{ tag: "summary" }]
+  },
+
+  renderHTML() {
+    return ["summary", { class: "wiki-collapsible-summary" }, 0]
+  },
+})
+
+// --- Math (LaTeX) Nodes ---
+
+function renderKatex(latex, displayMode) {
+  try {
+    return katex.renderToString(latex, { displayMode, throwOnError: false, output: "html" })
+  } catch {
+    return `<code class="wiki-math-error">${latex}</code>`
+  }
+}
+
+const MathInline = Node.create({
+  name: "mathInline",
+  group: "inline",
+  inline: true,
+  atom: true,
+  selectable: true,
+
+  addAttributes() {
+    return {
+      latex: { default: "" },
+    }
+  },
+
+  parseHTML() {
+    return [{
+      tag: "span.wiki-math-inline",
+      getAttrs: (node) => ({ latex: node.getAttribute("data-latex") || node.textContent }),
+    }]
+  },
+
+  renderHTML({ node }) {
+    return ["span", {
+      class: "wiki-math-inline",
+      "data-latex": node.attrs.latex,
+    }, node.attrs.latex]
+  },
+
+  addNodeView() {
+    return ({ node }) => {
+      const dom = document.createElement("span")
+      dom.className = "wiki-math-inline wiki-math-rendered"
+      dom.contentEditable = "false"
+      dom.innerHTML = renderKatex(node.attrs.latex, false)
+
+      return {
+        dom,
+        ignoreMutation: () => true,
+        selectNode: () => dom.classList.add("ProseMirror-selectednode"),
+        deselectNode: () => dom.classList.remove("ProseMirror-selectednode"),
+      }
+    }
+  },
+})
+
+const MathBlock = Node.create({
+  name: "mathBlock",
+  group: "block",
+  atom: true,
+  selectable: true,
+  draggable: true,
+
+  addAttributes() {
+    return {
+      latex: { default: "" },
+    }
+  },
+
+  parseHTML() {
+    return [{
+      tag: "div.wiki-math-block",
+      getAttrs: (node) => ({ latex: node.getAttribute("data-latex") || node.textContent }),
+    }]
+  },
+
+  renderHTML({ node }) {
+    return ["div", {
+      class: "wiki-math-block",
+      "data-latex": node.attrs.latex,
+    }, node.attrs.latex]
+  },
+
+  addNodeView() {
+    return ({ node }) => {
+      const dom = document.createElement("div")
+      dom.className = "wiki-math-block wiki-math-rendered"
+      dom.contentEditable = "false"
+      dom.innerHTML = renderKatex(node.attrs.latex, true)
+
+      return {
+        dom,
+        ignoreMutation: () => true,
+        selectNode: () => dom.classList.add("ProseMirror-selectednode"),
+        deselectNode: () => dom.classList.remove("ProseMirror-selectednode"),
+      }
+    }
+  },
+})
+
+// --- Main Controller ---
 
 export default class extends Controller {
   static targets = [
     "editor", "input",
     "linkModal", "linkText", "linkUrl", "unlinkBtn", "linkBubble",
     "embedModal", "embedCode",
+    "mathModal", "mathLatex", "mathPreview",
+    "tableBubble",
     "draftLinkWrap", "draftLink",
   ]
   static values = { draftKey: String }
@@ -119,9 +338,18 @@ export default class extends Controller {
         }),
         Link.configure({
           openOnClick: false,
+          inclusive: false,
           HTMLAttributes: {},
         }),
+        Table.configure({ resizable: false }),
+        TableRow,
+        TableCell,
+        TableHeader,
         EmbedPlaceholder,
+        CollapsibleDetails,
+        DetailsSummary,
+        MathInline,
+        MathBlock,
         Extension.create({
           name: "wikiShortcuts",
           addKeyboardShortcuts() {
@@ -140,6 +368,29 @@ export default class extends Controller {
             .replace(/<\/h1>/gi, "</h2>")
             .replace(/<h[4-6]([\s>])/gi, "<h3$1")
             .replace(/<\/h[4-6]>/gi, "</h3>")
+        },
+        handleClickOn: (view, pos, node, nodePos, event, direct) => {
+          if (!direct) return false
+          if (node.type.name === "mathInline" || node.type.name === "mathBlock") {
+            this.openMathEditForNode(node, nodePos)
+            return true
+          }
+          return false
+        },
+        handleTextInput: (view, from, to, text) => {
+          const { state } = view
+          const $from = state.doc.resolve(from)
+          const linkType = state.schema.marks.link
+          if (!linkType) return false
+
+          const linkBefore = $from.nodeBefore?.marks.some(m => m.type === linkType) ?? false
+          const linkAfter = $from.nodeAfter?.marks.some(m => m.type === linkType) ?? false
+
+          if (linkBefore === linkAfter) return false
+
+          const marks = (state.storedMarks || $from.marks()).filter(m => m.type !== linkType)
+          view.dispatch(state.tr.setStoredMarks(marks).insertText(text, from, to))
+          return true
         },
         handlePaste: (view, event) => {
           const text = event.clipboardData?.getData("text/plain")
@@ -168,6 +419,7 @@ export default class extends Controller {
       onSelectionUpdate: () => {
         this.updateToolbarState()
         this.updateLinkBubble()
+        this.updateTableBubble()
       },
       onTransaction: () => {
         this.updateToolbarState()
@@ -189,8 +441,17 @@ export default class extends Controller {
       this.embedModalTarget.addEventListener("keydown", this.boundEmbedModalKeydown)
     }
 
+    if (this.hasMathModalTarget) {
+      this.boundMathModalKeydown = this.handleMathModalKeydown.bind(this)
+      this.mathModalTarget.addEventListener("keydown", this.boundMathModalKeydown)
+    }
+
     this.boundEmbedEdit = this.handleEmbedEdit.bind(this)
     this.editorTarget.addEventListener("wiki:embed-edit", this.boundEmbedEdit)
+
+    if (this.hasTableBubbleTarget) {
+      this.tableBubbleTarget.addEventListener("mousedown", (e) => e.preventDefault())
+    }
 
     if (this.hasDraftKeyValue) {
       this.boundFormDraft = this.scheduleSaveDraft.bind(this)
@@ -209,6 +470,9 @@ export default class extends Controller {
     this.linkModalTarget?.removeEventListener("keydown", this.boundModalKeydown)
     if (this.hasEmbedModalTarget) {
       this.embedModalTarget?.removeEventListener("keydown", this.boundEmbedModalKeydown)
+    }
+    if (this.hasMathModalTarget) {
+      this.mathModalTarget?.removeEventListener("keydown", this.boundMathModalKeydown)
     }
     this.editorTarget?.removeEventListener("wiki:embed-edit", this.boundEmbedEdit)
     if (this.boundFormDraft) this.form?.removeEventListener("input", this.boundFormDraft)
@@ -247,6 +511,56 @@ export default class extends Controller {
   quote(e) { e.preventDefault(); this.editor.chain().focus().toggleBlockquote().run() }
   insertUnorderedList(e) { e.preventDefault(); this.editor.chain().focus().toggleBulletList().run() }
   insertOrderedList(e) { e.preventDefault(); this.editor.chain().focus().toggleOrderedList().run() }
+
+  insertTable(e) {
+    e.preventDefault()
+    this.editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()
+  }
+
+  insertCollapsible(e) {
+    e.preventDefault()
+    this.editor.chain().focus().insertContent({
+      type: "details",
+      content: [
+        { type: "detailsSummary", content: [{ type: "text", text: "Section title" }] },
+        { type: "paragraph", content: [{ type: "text", text: "Content here..." }] },
+      ],
+    }).run()
+  }
+
+  // --- Table bubble ---
+
+  updateTableBubble() {
+    if (!this.hasTableBubbleTarget || !this.editor) return
+    if (this.editor.isActive("table")) {
+      const { $from } = this.editor.state.selection
+      let depth = $from.depth
+      while (depth > 0 && $from.node(depth).type.name !== "table") depth--
+      if (depth > 0) {
+        const tableStart = $from.before(depth)
+        const dom = this.editor.view.nodeDOM(tableStart)
+        if (dom && dom.getBoundingClientRect) {
+          const rect = dom.getBoundingClientRect()
+          this.tableBubbleTarget.hidden = false
+          this.tableBubbleTarget.style.position = "fixed"
+          this.tableBubbleTarget.style.top = `${Math.max(4, rect.top - this.tableBubbleTarget.offsetHeight - 4)}px`
+          this.tableBubbleTarget.style.left = `${rect.left}px`
+          return
+        }
+      }
+      this.tableBubbleTarget.hidden = true
+    } else {
+      this.tableBubbleTarget.hidden = true
+    }
+  }
+
+  addColumnBefore(e) { e.preventDefault(); this.editor.chain().focus().addColumnBefore().run() }
+  addColumnAfter(e) { e.preventDefault(); this.editor.chain().focus().addColumnAfter().run() }
+  deleteColumn(e) { e.preventDefault(); this.editor.chain().focus().deleteColumn().run() }
+  addRowBefore(e) { e.preventDefault(); this.editor.chain().focus().addRowBefore().run() }
+  addRowAfter(e) { e.preventDefault(); this.editor.chain().focus().addRowAfter().run() }
+  deleteRow(e) { e.preventDefault(); this.editor.chain().focus().deleteRow().run() }
+  deleteTable(e) { e.preventDefault(); this.editor.chain().focus().deleteTable().run() }
 
   // --- Link bubble ---
 
@@ -409,11 +723,81 @@ export default class extends Controller {
   encodeBase64(s) { return btoa(unescape(encodeURIComponent(s))) }
   decodeBase64(s) { try { return decodeURIComponent(escape(atob(s))) } catch { return "" } }
 
+  // --- Math ---
+
+  closeMathModal(e) {
+    e?.preventDefault()
+    if (this.hasMathModalTarget) this.mathModalTarget.hidden = true
+    this.editingMathGetPos = null
+    this.editor.chain().focus().run()
+  }
+
+  openMathEditForNode(node, nodePos) {
+    this.editingMathGetPos = () => nodePos
+    this.editingMathDisplayMode = node.type.name === "mathBlock"
+    if (this.hasMathLatexTarget) this.mathLatexTarget.value = node.attrs.latex
+    this.updateMathPreview()
+    if (this.hasMathModalTarget) this.mathModalTarget.hidden = false
+    if (this.hasMathLatexTarget) this.mathLatexTarget.focus()
+  }
+
+  updateMathPreview() {
+    if (!this.hasMathPreviewTarget || !this.hasMathLatexTarget) return
+    const latex = this.mathLatexTarget.value.trim()
+    if (!latex) {
+      this.mathPreviewTarget.innerHTML = '<span style="color:#999">Preview will appear here</span>'
+      return
+    }
+    this.mathPreviewTarget.innerHTML = renderKatex(latex, this.editingMathDisplayMode || false)
+  }
+
+  applyMath(e) {
+    e?.preventDefault()
+    const latex = this.hasMathLatexTarget ? this.mathLatexTarget.value.trim() : ""
+    if (!latex) { this.closeMathModal(); return }
+
+    const nodeType = this.editingMathDisplayMode ? "mathBlock" : "mathInline"
+
+    if (this.editingMathGetPos) {
+      const pos = this.editingMathGetPos()
+      this.editor.chain().focus()
+        .deleteRange({ from: pos, to: pos + 1 })
+        .insertContentAt(pos, { type: nodeType, attrs: { latex } })
+        .run()
+    } else {
+      this.editor.chain().focus()
+        .insertContent({ type: nodeType, attrs: { latex } })
+        .run()
+    }
+
+    this.closeMathModal()
+  }
+
+  removeMath(e) {
+    e?.preventDefault()
+    if (this.editingMathGetPos) {
+      const pos = this.editingMathGetPos()
+      this.editor.chain().focus().deleteRange({ from: pos, to: pos + 1 }).run()
+    }
+    this.closeMathModal()
+  }
+
+  insertMathInline(e) {
+    e?.preventDefault()
+    this.editingMathGetPos = null
+    this.editingMathDisplayMode = false
+    if (this.hasMathLatexTarget) this.mathLatexTarget.value = ""
+    if (this.hasMathPreviewTarget) this.mathPreviewTarget.innerHTML = ""
+    if (this.hasMathModalTarget) this.mathModalTarget.hidden = false
+    if (this.hasMathLatexTarget) this.mathLatexTarget.focus()
+  }
+
   // --- Keyboard ---
 
   handleFormKeydown(e) {
     if (e.key !== "Enter") return
     if (!this.linkModalTarget.hidden) return
+    if (this.hasMathModalTarget && !this.mathModalTarget.hidden) return
     if (["INPUT", "SELECT", "TEXTAREA"].includes(e.target.tagName)) e.preventDefault()
   }
 
@@ -424,6 +808,10 @@ export default class extends Controller {
 
   handleEmbedModalKeydown(e) {
     if (e.key === "Escape") { e.preventDefault(); this.closeEmbedModal() }
+  }
+
+  handleMathModalKeydown(e) {
+    if (e.key === "Escape") { e.preventDefault(); this.closeMathModal() }
   }
 
   // --- Submit ---
@@ -449,25 +837,67 @@ export default class extends Controller {
   }
 
   htmlToMarkdown(html) {
+    const embedMap = {}
+    let embedCounter = 0
+    const preProcessed = html.replace(/<div[^>]*class="wiki-embed-placeholder"[^>]*data-embed="([^"]*)"[^>]*>(?:<\/div>)?/g, (_match, encoded) => {
+      const key = `WIKIEMBED${embedCounter++}X`
+      embedMap[key] = encoded
+      return `<p>${key}</p>`
+    })
+
     const service = new TurndownService({ headingStyle: "atx", codeBlockStyle: "fenced" })
-    service.addRule("embedPlaceholder", {
-      filter: (node) => node.classList?.contains("wiki-embed-placeholder") && node.hasAttribute?.("data-embed"),
+
+    service.addRule("mathInline", {
+      filter: (node) => node.nodeName === "SPAN" && node.classList && node.classList.contains("wiki-math-inline"),
       replacement: (_content, node) => {
-        const encoded = node.getAttribute("data-embed")
-        if (!encoded) return ""
-        try {
-          const iframeHtml = decodeURIComponent(escape(atob(encoded)))
-          return `\n<div class="wiki-embed-wrapper">${iframeHtml}</div>\n`
-        } catch { return "" }
+        const latex = node.getAttribute("data-latex") || node.textContent
+        return `$${latex}$`
       },
     })
+
+    service.addRule("mathBlock", {
+      filter: (node) => node.nodeName === "DIV" && node.classList && node.classList.contains("wiki-math-block"),
+      replacement: (_content, node) => {
+        const latex = node.getAttribute("data-latex") || node.textContent
+        return `\n\n$$${latex}$$\n\n`
+      },
+    })
+
+    service.addRule("collapsibleDetails", {
+      filter: (node) => node.nodeName === "DETAILS",
+      replacement: (_content, node) => {
+        const summary = node.querySelector("summary")
+        const summaryText = summary ? summary.textContent.trim() : "Details"
+        const bodyHtml = []
+        for (const child of node.children) {
+          if (child.nodeName === "SUMMARY") continue
+          bodyHtml.push(child.outerHTML)
+        }
+        return `\n\n<details>\n<summary>${summaryText}</summary>\n\n${bodyHtml.join("\n")}\n\n</details>\n\n`
+      },
+    })
+
+    service.use(gfm)
+
+    let md
     try {
-      return service.turndown(html) || ""
+      md = service.turndown(preProcessed) || ""
     } catch {
       const el = document.createElement("div")
       el.innerHTML = html
       return el.textContent || ""
     }
+
+    Object.entries(embedMap).forEach(([key, encoded]) => {
+      try {
+        const iframeHtml = decodeURIComponent(escape(atob(encoded)))
+        md = md.replace(key, `\n\n<div class="wiki-embed-wrapper">${iframeHtml}</div>\n\n`)
+      } catch {
+        md = md.replace(key, "")
+      }
+    })
+
+    return md
   }
 
   // --- Drafts ---

@@ -19,7 +19,7 @@
           <% end %>
           <button type="button" class="wiki-action-link wiki-action-print">Print</button>
           <button type="button" class="wiki-action-link wiki-action-share">Share</button>
-          <% if admin? && @page.is_a?(Page) %>
+          <% if can_delete_page?(@page) %>
             <button type="button" class="wiki-action-link wiki-action-delete">Delete</button>
           <% end %>
         </div>
@@ -92,6 +92,19 @@
   </div>
 </div>
 
+<script type="module">
+  import katex from "katex"
+  document.querySelectorAll(".wiki-math-inline").forEach(function(el) {
+    var latex = el.getAttribute("data-latex") || el.textContent;
+    try { katex.render(latex, el, { displayMode: false, throwOnError: false }); }
+    catch(e) { el.textContent = latex; }
+  });
+  document.querySelectorAll(".wiki-math-block").forEach(function(el) {
+    var latex = el.getAttribute("data-latex") || el.textContent;
+    try { katex.render(latex, el, { displayMode: true, throwOnError: false }); }
+    catch(e) { el.textContent = latex; }
+  });
+</script>
 <script>
   document.querySelectorAll(".wiki-action-print").forEach(function(btn) {
     btn.addEventListener("click", function() { window.print(); });

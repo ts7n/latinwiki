@@ -17,11 +17,22 @@
       <%= form_with scope: :page, url: pages_path, method: :post, local: true, data: { turbo: false }, class: "wiki-edit-form" do |f| %>
         <div class="wiki-edit-field">
           <%= f.label :section, "Section" %>
-          <%= f.select :section, options_for_select(wiki_createable_sections.map { |s| [ s[:name], s[:slug] ] }, params.dig(:page, :section)), { include_blank: "Select a section" }, class: "wiki-edit-input wiki-edit-select" %>
+          <% dropdown_sections = wiki_sections_for_dropdown %>
+          <%= f.select :section,
+            options_for_select(dropdown_sections.map { |s| [ s[:name], s[:slug] ] }, params.dig(:page, :section)),
+            { include_blank: "Select a section" },
+            class: "wiki-edit-input wiki-edit-select",
+            data: { "unlisted-sections" => dropdown_sections.select { |s| s[:unlisted] }.map { |s| s[:slug] }.to_json } %>
         </div>
-        <div class="wiki-edit-field">
-          <%= f.label :title, "Title" %>
-          <%= f.text_field :title, value: params.dig(:page, :title), placeholder: "Page title", class: "wiki-edit-input" %>
+        <div class="wiki-edit-field-row wiki-edit-field-row--wide">
+          <div class="wiki-edit-field wiki-edit-field--name">
+            <%= f.label :title, "Title" %>
+            <%= f.text_field :title, value: params.dig(:page, :title), placeholder: "Page title", class: "wiki-edit-input", id: "page-title-input" %>
+          </div>
+          <div class="wiki-edit-field wiki-edit-field--slug">
+            <%= f.label :slug, "Slug" %>
+            <%= f.text_field :slug, value: params.dig(:page, :slug), placeholder: "auto-generated", class: "wiki-edit-input wiki-edit-slug-input", id: "page-slug-input" %>
+          </div>
         </div>
         <div class="wiki-edit-field">
           <%= f.label :content, "Content" %>
@@ -31,6 +42,14 @@
           <%= f.label :rationale, "Comment for history (optional)" %>
           <%= text_field_tag "page[rationale]", params.dig(:page, :rationale), placeholder: "What purpose does this page serve?", class: "wiki-edit-input", maxlength: 200 %>
         </div>
+        <% if admin? %>
+          <div class="wiki-edit-field wiki-edit-field--checkbox" id="unlisted-checkbox-field">
+            <label class="wiki-edit-checkbox-label">
+              <%= f.check_box :unlisted, class: "wiki-edit-checkbox", id: "page-unlisted-check" %>
+              Unlisted (hidden from sidebar)
+            </label>
+          </div>
+        <% end %>
         <div class="wiki-edit-form-actions">
           <%= f.submit "Publish", class: "wiki-edit-submit" %>
         </div>
@@ -39,9 +58,28 @@
       <%= form_with model: @page, url: doc_path(path: @page.path), method: :patch, local: true, data: { turbo: false }, class: "wiki-edit-form" do |f| %>
         <%= hidden_field_tag "page[base_version]", @base_version %>
         <%= hidden_field_tag "resolve", "1" if @merge_conflict %>
-        <div class="wiki-edit-field">
-          <%= f.label :title, "Title" %>
-          <%= f.text_field :title, value: @edit_title, placeholder: "Page title", class: "wiki-edit-input" %>
+        <% if can_create_page? %>
+          <div class="wiki-edit-field">
+            <%= f.label :section_slug, "Section" %>
+            <% dropdown_sections = wiki_sections_for_dropdown %>
+            <%= f.select :section_slug,
+              options_for_select(dropdown_sections.map { |s| [ s[:name], s[:slug] ] }, @page.section_slug),
+              {},
+              class: "wiki-edit-input wiki-edit-select",
+              data: { "unlisted-sections" => dropdown_sections.select { |s| s[:unlisted] }.map { |s| s[:slug] }.to_json } %>
+          </div>
+        <% end %>
+        <div class="wiki-edit-field-row <%= 'wiki-edit-field-row--wide' if can_create_page? %>">
+          <div class="wiki-edit-field wiki-edit-field--name">
+            <%= f.label :title, "Title" %>
+            <%= f.text_field :title, value: @edit_title, placeholder: "Page title", class: "wiki-edit-input" %>
+          </div>
+          <% if can_create_page? %>
+            <div class="wiki-edit-field wiki-edit-field--slug">
+              <%= f.label :slug, "Slug" %>
+              <%= f.text_field :slug, value: @page.slug, class: "wiki-edit-input wiki-edit-slug-input" %>
+            </div>
+          <% end %>
         </div>
         <div class="wiki-edit-field <%= 'wiki-edit-merge-columns' if @merge_conflict %>">
           <% if @merge_conflict %>
@@ -62,6 +100,14 @@
           <%= f.label :rationale, "Comment for history (optional)" %>
           <%= f.text_field :rationale, value: @edit_rationale, placeholder: "Briefly, what did you change and why?", class: "wiki-edit-input", maxlength: 200 %>
         </div>
+        <% if admin? %>
+          <div class="wiki-edit-field wiki-edit-field--checkbox" id="unlisted-checkbox-field">
+            <label class="wiki-edit-checkbox-label">
+              <%= f.check_box :unlisted, { class: "wiki-edit-checkbox", id: "page-unlisted-check", checked: @page.respond_to?(:unlisted) && @page.unlisted }, "1", "0" %>
+              Unlisted (hidden from sidebar)
+            </label>
+          </div>
+        <% end %>
         <div class="wiki-edit-form-actions">
           <%= f.submit @merge_conflict ? "Save merged changes" : "Save changes", class: "wiki-edit-submit" %>
         </div>
@@ -69,3 +115,64 @@
     <% end %>
   </div>
 </div>
+
+<script>
+  (function() {
+    // Sanitize all slug inputs as the user types
+    document.querySelectorAll(".wiki-edit-slug-input").forEach(function(el) {
+      el.addEventListener("input", function() {
+        var pos = el.selectionStart;
+        var before = el.value;
+        el.value = el.value.toLowerCase().replace(/[^a-z0-9-]/g, "");
+        if (el.value.length < before.length) pos = Math.max(0, pos - (before.length - el.value.length));
+        el.setSelectionRange(pos, pos);
+      });
+    });
+
+    // Auto-generate slug from title on create page
+    var titleInput = document.getElementById("page-title-input");
+    var slugInput = document.getElementById("page-slug-input");
+    if (titleInput && slugInput) {
+      var userModifiedSlug = slugInput.value.trim() !== "";
+
+      slugInput.addEventListener("input", function() {
+        userModifiedSlug = true;
+      });
+
+      titleInput.addEventListener("input", function() {
+        if (userModifiedSlug) return;
+        slugInput.value = titleInput.value
+          .toLowerCase()
+          .trim()
+          .replace(/[^\w\s-]/g, "")
+          .replace(/\s+/g, "-")
+          .replace(/-+/g, "-")
+          .replace(/^-|-$/g, "");
+      });
+    }
+
+    // Hide unlisted checkbox when section is unlisted
+    var sectionSelect = document.querySelector("select[name='page[section]'], select[name='page[section_slug]']");
+    var unlistedField = document.getElementById("unlisted-checkbox-field");
+    var unlistedCheck = document.getElementById("page-unlisted-check");
+    if (sectionSelect && unlistedField) {
+      var unlistedSections = [];
+      try {
+        unlistedSections = JSON.parse(sectionSelect.getAttribute("data-unlisted-sections") || "[]");
+      } catch(e) {}
+
+      function updateUnlistedVisibility() {
+        var isUnlistedSection = unlistedSections.indexOf(sectionSelect.value) !== -1;
+        if (isUnlistedSection) {
+          unlistedField.style.display = "none";
+          if (unlistedCheck) unlistedCheck.checked = true;
+        } else {
+          unlistedField.style.display = "";
+        }
+      }
+
+      sectionSelect.addEventListener("change", updateUnlistedVisibility);
+      updateUnlistedVisibility();
+    }
+  })();
+</script>

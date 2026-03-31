@@ -1,4 +1,19 @@
 module ApplicationHelper
+  def transform_math_for_editor(html)
+    return html if html.blank?
+
+    doc = Nokogiri::HTML5.fragment(html)
+    doc.css("span.wiki-math-inline").each do |el|
+      latex = el.text.strip
+      el["data-latex"] = latex
+    end
+    doc.css("div.wiki-math-block").each do |el|
+      latex = el.text.strip
+      el["data-latex"] = latex
+    end
+    doc.to_html
+  end
+
   def transform_embeds_for_editor(html)
     return html if html.blank?
 

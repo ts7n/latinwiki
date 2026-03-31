@@ -13,7 +13,7 @@ Edit [`config/wiki.yml`](config/wiki.yml) before deploying:
 | `user_domains` | Email domains allowed to sign in via Google |
 | `moderator_domains` | Subset of `user_domains` that may create pages (admins always can) |
 | `role_labels` | Display labels by email domain (e.g. `latinschool.org: "Faculty/Staff"`) |
-| `sections` | Sidebar sections: `slug`, `name`, and `createable` (true/false) |
+| `sections` | Sidebar sections: `slug`, `name`, `createable` (true/false), and optionally `unlisted` (true) |
 | `default_path` | Where `/` redirects (e.g. `meta/introduction`) |
 | `sign_in_required_message` | Body text on the sign-in-required page (HTML, sanitized) |
 | `unauthorized_domain_message` | Flash message when a disallowed email domain tries to sign in |
@@ -31,7 +31,8 @@ bundle install
 bin/rails credentials:edit      # add google.client_id and google.client_secret
 cp .env.example .env            # paste the contents of config/master.key as RAILS_MASTER_KEY
 docker compose up --build
+docker compose exec web bin/rails db:migrate
 docker compose exec web bin/rails db:seed
 ```
 
-By default, the app runs on port `3000`.
+By default, the website runs on port `3000`.

@@ -87,7 +87,9 @@ class PagesController < ApplicationController
 
     result = Pages::PageCreator.new(
       wiki_sections: wiki_sections,
-      page_params: page_params_for_create
+      page_params: page_params_for_create,
+      is_admin: admin?,
+      created_by: current_user
     ).call
 
     if result.success
@@ -116,8 +118,24 @@ class PagesController < ApplicationController
         end
       end
 
+      old_path = @page.path
       @page.title = page_params_for_update[:title]
       @page.content = page_params_for_update[:content]
+
+      if can_create_page?
+        new_section = page_params_for_update[:section_slug]
+        @page.section_slug = new_section if new_section.present?
+
+        new_slug = page_params_for_update[:slug]
+        if new_slug.present?
+          @page.slug = new_slug.parameterize.presence || @page.slug
+        end
+      end
+
+      if admin?
+        @page.unlisted = page_params_for_update[:unlisted] == "1"
+      end
+
       if @page.save
         rationale = page_params_for_update[:rationale].to_s.strip.presence
         @page.versions.create!(
@@ -127,11 +145,16 @@ class PagesController < ApplicationController
           user: current_user,
           rationale: rationale
         )
-        session.delete(:merge_draft) if session[:merge_draft]&.dig("path") == @page.path
+        session.delete(:merge_draft) if session[:merge_draft]&.dig("path") == old_path
         redirect_to doc_path(path: @page.path), notice: "Page updated."
       else
+        flash.now[:alert] = @page.errors.full_messages.to_sentence
+        @edit_title = @page.title
+        @edit_rationale = page_params_for_update[:rationale]
+        @content_html = WikiMarkdown.render(@page.content || "")[:html]
+        @base_version = @page.versions.maximum(:version_number)
         @pages_for_sidebar = pages_for_sidebar
-        render :edit
+        render :edit, status: :unprocessable_entity
       end
     else
       redirect_to doc_path(path: @page.path), alert: "Cannot edit file-based pages."
@@ -139,7 +162,7 @@ class PagesController < ApplicationController
   end
 
   def destroy
-    unless admin?
+    unless can_delete_page?(@page)
       redirect_to root_path
       return
     end
@@ -154,17 +177,17 @@ class PagesController < ApplicationController
   private
 
   def page_params_for_create
-    params.require(:page).permit(:section, :title, :content, :rationale)
+    params.require(:page).permit(:section, :title, :content, :rationale, :slug, :unlisted)
   end
 
   def page_params_for_update
-    params.require(:page).permit(:title, :content, :rationale, :base_version)
+    params.require(:page).permit(:title, :content, :rationale, :base_version, :section_slug, :slug, :unlisted)
   end
 
   def skip_set_page_for_new
     if params[:new] == "1"
       @creating = true
-      @page = OpenStruct.new(path: "", title: "", content: "")
+      @page = OpenStruct.new(path: "", title: "", content: "", slug: "", unlisted: false)
       return
     end
   end

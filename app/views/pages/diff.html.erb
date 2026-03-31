@@ -8,7 +8,7 @@
       <%= link_to "← Back to page", doc_path(path: page_path), class: "wiki-diff-back" %>
     </div>
     <div class="wiki-diff-content">
-      <%= @diff.to_s(:html_simple).html_safe %>
+      <%= @diff.to_s(:html_simple).gsub(/\n<\/(span|del|ins)>/, '</\1>').html_safe %>
     </div>
   </div>
 </div>

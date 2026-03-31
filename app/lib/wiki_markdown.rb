@@ -2,6 +2,21 @@
 
 module WikiMarkdown
   class Renderer < Redcarpet::Render::HTML
+    def link(link, title, content)
+      attrs = " href=\"#{link}\""
+      attrs += " title=\"#{title}\"" if title && !title.empty?
+      attrs += ' target="_blank" rel="noopener noreferrer"'
+      "<a#{attrs}>#{content}</a>"
+    end
+
+    def autolink(link, link_type)
+      %(<a href="#{link}" target="_blank" rel="noopener noreferrer">#{link}</a>)
+    end
+
+    def table(content)
+      "<table class=\"wiki-table\">#{content}</table>"
+    end
+
     def header(text, level)
       base_id = slugify(text)
       @seen_ids ||= {}
@@ -26,10 +41,42 @@ module WikiMarkdown
     end
   end
 
+  BLOCK_MATH_RE  = /\$\$(.+?)\$\$/m
+  INLINE_MATH_RE = /(?<!\$)\$(?!\$)(.+?)(?<!\$)\$(?!\$)/
+
   def self.render(content)
+    content ||= ""
+
+    placeholders = {}
+    counter = 0
+
+    processed = content.gsub(BLOCK_MATH_RE) do
+      latex = Regexp.last_match(1).strip
+      key = "WIKIMATH#{counter += 1}BLOCK"
+      placeholders[key] = %(<div class="wiki-math-block" data-latex="#{ERB::Util.html_escape(latex)}">#{ERB::Util.html_escape(latex)}</div>)
+      "\n\n#{key}\n\n"
+    end
+
+    processed = processed.gsub(INLINE_MATH_RE) do
+      latex = Regexp.last_match(1).strip
+      key = "WIKIMATH#{counter += 1}INLINE"
+      placeholders[key] = %(<span class="wiki-math-inline" data-latex="#{ERB::Util.html_escape(latex)}">#{ERB::Util.html_escape(latex)}</span>)
+      key
+    end
+
     renderer = Renderer.new
-    markdown = Redcarpet::Markdown.new(renderer, fenced_code_blocks: true, tables: true)
-    html = markdown.render(content || "")
+    markdown = Redcarpet::Markdown.new(renderer,
+      fenced_code_blocks: true,
+      tables: true,
+      no_intra_emphasis: true,
+      lax_spacing: true
+    )
+    html = markdown.render(processed)
+
+    placeholders.each do |key, replacement|
+      html.gsub!(%r{<p>#{Regexp.escape(key)}</p>|#{Regexp.escape(key)}}, replacement)
+    end
+
     sections = renderer.instance_variable_get(:@sections) || []
     { html: html.html_safe, sections: sections }
   end

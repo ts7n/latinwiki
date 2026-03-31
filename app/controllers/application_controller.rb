@@ -3,8 +3,9 @@
 class ApplicationController < ActionController::Base
   # Only allow modern browsers supporting webp images, web push, badges, import maps, CSS nesting, and CSS :has.
   allow_browser versions: :modern
-  helper_method :current_user, :admin?, :can_create_page?, :pages_for_sidebar, :wiki_sections, :wiki_createable_sections,
-                :wiki_name, :wiki_accent_color, :wiki_section_name, :wiki_sign_in_required_message
+  helper_method :current_user, :admin?, :can_create_page?, :can_delete_page?, :pages_for_sidebar, :wiki_sections, :wiki_createable_sections,
+                :wiki_name, :wiki_accent_color, :wiki_section_name, :wiki_sign_in_required_message,
+                :wiki_section_unlisted?, :wiki_sections_for_dropdown
 
   # Changes to the importmap will invalidate the etag for HTML responses
   stale_when_importmap_changes
@@ -23,6 +24,14 @@ class ApplicationController < ActionController::Base
 
     domain = current_user.email.to_s.split("@", 2).last
     Rails.application.config.wiki_moderator_domains.include?(domain)
+  end
+
+  def can_delete_page?(page)
+    return false unless current_user
+    return true if admin?
+    return false unless page.is_a?(Page)
+
+    can_create_page? && page.created_by_id == current_user.id
   end
 
   def wiki_name
@@ -50,6 +59,20 @@ class ApplicationController < ActionController::Base
     wiki_sections.select { |s| s[:createable] != false && s["createable"] != false }
   end
 
+  def wiki_section_unlisted?(slug)
+    s = wiki_sections.find { |sec| sec[:slug].to_s == slug.to_s }
+    return false unless s
+    s[:unlisted] == true || s["unlisted"] == true
+  end
+
+  def wiki_sections_for_dropdown
+    wiki_createable_sections.map do |s|
+      label = s[:name].presence || s[:slug].to_s.titleize
+      label += " (unlisted)" if s[:unlisted] == true || s["unlisted"] == true
+      { name: label, slug: s[:slug].to_s, unlisted: s[:unlisted] == true || s["unlisted"] == true }
+    end
+  end
+
   def pages_for_sidebar
     @pages_for_sidebar ||= build_sidebar_pages
   end
@@ -59,13 +82,14 @@ class ApplicationController < ActionController::Base
   def build_sidebar_pages
     sections = wiki_sections
     if Page.table_exists? && Page.any?
-      sections.map do |s|
+      listed_sections = sections.reject { |s| s[:unlisted] == true || s["unlisted"] == true }
+      listed_sections.map do |s|
         s = s.deep_symbolize_keys
         slug = s[:slug].to_s
         {
           name: s[:name].presence || slug.titleize,
           slug: slug,
-          pages: Page.where(section_slug: slug).ordered.to_a
+          pages: Page.where(section_slug: slug, unlisted: false).ordered.to_a
         }
       end
     else

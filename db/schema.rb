@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_02_24_000003) do
+ActiveRecord::Schema[8.1].define(version: 2026_03_25_000002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -61,13 +61,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_24_000003) do
   create_table "pages", force: :cascade do |t|
     t.text "content", default: ""
     t.datetime "created_at", null: false
-    t.bigint "parent_id"
+    t.bigint "created_by_id"
     t.integer "position", default: 0, null: false
+    t.string "section_slug", null: false
     t.string "slug", null: false
     t.string "title", null: false
+    t.boolean "unlisted", default: false, null: false
     t.datetime "updated_at", null: false
-    t.index ["parent_id", "slug"], name: "index_pages_on_parent_id_and_slug", unique: true
-    t.index ["parent_id"], name: "index_pages_on_parent_id"
+    t.index ["created_by_id"], name: "index_pages_on_created_by_id"
+    t.index ["section_slug", "slug"], name: "index_pages_on_section_slug_and_slug", unique: true
   end
 
   create_table "users", force: :cascade do |t|
@@ -89,5 +91,5 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_24_000003) do
   add_foreign_key "page_coordinators", "users"
   add_foreign_key "page_versions", "pages"
   add_foreign_key "page_versions", "users"
-  add_foreign_key "pages", "pages", column: "parent_id"
+  add_foreign_key "pages", "users", column: "created_by_id"
 end
