@@ -16,6 +16,8 @@ class PagesSectionSlugFlatHierarchy < ActiveRecord::Migration[8.1]
     remove_index :pages, column: :parent_id, name: "index_pages_on_parent_id"
     remove_column :pages, :parent_id
 
+    execute "DELETE FROM page_coordinators WHERE page_id IN (SELECT id FROM pages WHERE section_slug IS NULL)"
+    execute "DELETE FROM page_versions WHERE page_id IN (SELECT id FROM pages WHERE section_slug IS NULL)"
     execute "DELETE FROM pages WHERE section_slug IS NULL"
 
     change_column_null :pages, :section_slug, false
