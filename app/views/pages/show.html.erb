@@ -104,6 +104,21 @@
     try { katex.render(latex, el, { displayMode: true, throwOnError: false }); }
     catch(e) { el.textContent = latex; }
   });
+
+  var mermaidEls = document.querySelectorAll(".wiki-mermaid-block");
+  if (mermaidEls.length > 0) {
+    import("mermaid").then(function(mod) {
+      var mermaid = mod.default;
+      mermaid.initialize({ startOnLoad: false, theme: "default" });
+      var counter = 0;
+      mermaidEls.forEach(function(el) {
+        var code = el.getAttribute("data-code") || el.textContent;
+        mermaid.render("mmd-page-" + (++counter), code).then(function(result) {
+          el.innerHTML = result.svg;
+        }).catch(function() {});
+      });
+    });
+  }
 </script>
 <script>
   document.querySelectorAll(".wiki-action-print").forEach(function(btn) {

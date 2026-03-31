@@ -16,3 +16,4 @@ pin "@tiptap/extension-table-header", to: "https://esm.sh/@tiptap/extension-tabl
 pin "turndown", to: "https://esm.sh/turndown@7"
 pin "turndown-plugin-gfm", to: "https://esm.sh/turndown-plugin-gfm@1"
 pin "katex", to: "https://esm.sh/katex@0.16"
+pin "mermaid", to: "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs"

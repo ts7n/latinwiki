@@ -1743,6 +1743,12 @@ body::before {
     text-decoration: underline;
   }
 
+  .wiki-editor-canvas hr {
+    border: none;
+    border-top: 1px solid #c8c8c8;
+    margin: 1.5em 0;
+  }
+
   .wiki-editor-canvas blockquote {
     margin: 0.75em 0;
     padding: 0.1em 0 0.1em 1em;
@@ -1853,6 +1859,12 @@ body::before {
   .wiki-article li > ul,
   .wiki-article li > ol { margin: 0.25em 0; }
 
+  .wiki-article hr {
+    border: none;
+    border-top: 1px solid #c8c8c8;
+    margin: 1.5em 0;
+  }
+
   .wiki-article blockquote {
     margin: 0.75em 0;
     padding: 0.1em 0 0.1em 1em;
@@ -1953,50 +1965,45 @@ body::before {
     padding: 0;
   }
 
+  .wiki-collapsible[open],
+  .wiki-article details[open] {
+    padding: 0 0.75em 0.5em;
+  }
+
+  .wiki-editor-canvas .wiki-collapsible {
+    padding: 0 0.75em 0.5em;
+  }
+
   .wiki-collapsible > summary,
   .wiki-collapsible-summary,
   .wiki-article details > summary {
     font-weight: 600;
     padding: 0.5em 0.75em;
     background: #f6f6f6;
-    list-style: revert;
   }
 
   .wiki-article details > summary {
     cursor: pointer;
+    list-style: revert;
   }
 
-  .wiki-editor-canvas .wiki-collapsible > summary,
-  .wiki-editor-canvas .wiki-collapsible-wrapper summary {
+  .wiki-editor-canvas .wiki-collapsible-summary {
     cursor: text;
+    display: list-item;
+    list-style: disclosure-open inside;
+    border-bottom: 1px solid #ccc;
+    margin: 0 -0.75em;
   }
 
   .wiki-collapsible[open] > summary,
   .wiki-article details[open] > summary {
     border-bottom: 1px solid #ccc;
+    margin: 0 -0.75em;
+    padding: 0.5em 0.75em;
   }
 
-  .wiki-collapsible:not([open]) > summary,
   .wiki-article details:not([open]) > summary {
     border-bottom: none;
-  }
-
-  .wiki-collapsible > :not(summary) {
-    padding-left: 0.75em;
-    padding-right: 0.75em;
-  }
-
-  .wiki-collapsible > :last-child {
-    padding-bottom: 0.5em;
-  }
-
-  .wiki-article details > :not(summary) {
-    padding-left: 0.75em;
-    padding-right: 0.75em;
-  }
-
-  .wiki-article details > :last-child {
-    padding-bottom: 0.5em;
   }
 
   .wiki-collapsible-wrapper {
@@ -2073,12 +2080,73 @@ body::before {
     font-size: 0.9em;
   }
 
+  /* Mermaid — display */
+  .wiki-mermaid-block {
+    display: block;
+    text-align: center;
+    margin: 1em 0;
+    overflow-x: auto;
+  }
+
+  .wiki-mermaid-block svg {
+    max-width: 100%;
+    height: auto;
+  }
+
   .wiki-math-preview-box {
     min-height: 2em;
     padding: 0.75em;
     border: 1px solid #ddd;
     background: #fafafa;
     overflow-x: auto;
+  }
+
+  .wiki-editor-canvas .wiki-mermaid-block {
+    display: block;
+    margin: 1em 0;
+    overflow-x: auto;
+  }
+
+  .wiki-mermaid-rendered {
+    cursor: pointer;
+    border: 1px dashed #ccc;
+    border-radius: 4px;
+    padding: 0.75em;
+    background: #fcfcfc;
+    text-align: center;
+  }
+
+  .wiki-mermaid-rendered:hover {
+    border-color: #68ade8;
+    background: #f5f9ff;
+  }
+
+  .wiki-mermaid-render-area svg {
+    max-width: 100%;
+    height: auto;
+  }
+
+  .wiki-mermaid-error {
+    text-align: left;
+    color: #b00;
+    font-size: 0.85em;
+    background: #fff5f5;
+    padding: 0.5em;
+    border-radius: 3px;
+  }
+
+  .wiki-mermaid-preview-box {
+    min-height: 3em;
+    padding: 0.75em;
+    border: 1px solid #ddd;
+    background: #fafafa;
+    overflow-x: auto;
+    text-align: center;
+  }
+
+  .wiki-mermaid-preview-box svg {
+    max-width: 100%;
+    height: auto;
   }
 }
 
@@ -2165,8 +2233,7 @@ body::before {
     border-right: 1px solid #999;
     box-sizing: border-box;
     padding-bottom: max(1.25em, env(safe-area-inset-bottom, 0px));
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
+    overflow: hidden;
   }
 
   .wiki-sidebar-open .wiki-sidebar {

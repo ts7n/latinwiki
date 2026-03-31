@@ -10,6 +10,30 @@ import TurndownService from "turndown"
 import { gfm } from "turndown-plugin-gfm"
 import katex from "katex"
 
+// Lazy-loaded mermaid module
+let mermaidReady = null
+function loadMermaid() {
+  if (mermaidReady) return mermaidReady
+  mermaidReady = import("mermaid").then((mod) => {
+    const m = mod.default
+    m.initialize({ startOnLoad: false, theme: "default" })
+    return m
+  })
+  return mermaidReady
+}
+
+let mermaidRenderCounter = 0
+async function renderMermaidSvg(code, container) {
+  try {
+    const m = await loadMermaid()
+    const id = `wiki-mmd-${++mermaidRenderCounter}`
+    const { svg } = await m.render(id, code)
+    container.innerHTML = svg
+  } catch {
+    container.innerHTML = `<pre class="wiki-mermaid-error"><code>${code.replace(/</g, "&lt;")}</code></pre>`
+  }
+}
+
 // --- Embed Placeholder Node ---
 
 const EmbedPlaceholder = Node.create({
@@ -137,16 +161,8 @@ const CollapsibleDetails = Node.create({
       const wrapper = document.createElement("div")
       wrapper.className = "wiki-collapsible-wrapper"
 
-      const details = document.createElement("details")
-      details.className = "wiki-collapsible"
-      details.open = true
-
-      // Prevent the native <details> toggle — the editor controls open state
-      const preventToggle = (e) => {
-        if (e.target.closest && e.target.closest("summary")) e.preventDefault()
-      }
-      details.addEventListener("click", preventToggle)
-      details.addEventListener("toggle", () => { details.open = true })
+      const container = document.createElement("div")
+      container.className = "wiki-collapsible"
 
       const preventFocus = (e) => e.preventDefault()
       const removeBtn = document.createElement("button")
@@ -166,11 +182,11 @@ const CollapsibleDetails = Node.create({
         editor.chain().focus().deleteRange({ from: pos, to: pos + currentNode.nodeSize }).run()
       })
 
-      wrapper.appendChild(details)
+      wrapper.appendChild(container)
       wrapper.appendChild(removeBtn)
 
       requestAnimationFrame(() => {
-        const summary = details.querySelector("summary")
+        const summary = container.querySelector(".wiki-collapsible-summary")
         if (summary) {
           const h = summary.offsetHeight
           removeBtn.style.height = h + "px"
@@ -181,15 +197,13 @@ const CollapsibleDetails = Node.create({
 
       return {
         dom: wrapper,
-        contentDOM: details,
+        contentDOM: container,
         ignoreMutation: (mutation) => {
-          if (!details.contains(mutation.target)) return true
-          if (mutation.type === "attributes" && mutation.target === details) return true
+          if (!container.contains(mutation.target)) return true
           return false
         },
         stopEvent: (event) => !!(event.target.closest && event.target.closest(".wiki-collapsible-remove-btn")),
         destroy: () => {
-          details.removeEventListener("click", preventToggle)
           removeBtn.removeEventListener("mousedown", preventFocus)
         },
       }
@@ -208,6 +222,14 @@ const DetailsSummary = Node.create({
 
   renderHTML() {
     return ["summary", { class: "wiki-collapsible-summary" }, 0]
+  },
+
+  addNodeView() {
+    return () => {
+      const dom = document.createElement("div")
+      dom.className = "wiki-collapsible-summary"
+      return { dom, contentDOM: dom }
+    }
   },
 })
 
@@ -309,6 +331,66 @@ const MathBlock = Node.create({
   },
 })
 
+// --- Mermaid Block Node ---
+
+const MermaidBlock = Node.create({
+  name: "mermaidBlock",
+  group: "block",
+  atom: true,
+  selectable: true,
+  draggable: true,
+
+  addAttributes() {
+    return {
+      code: { default: "" },
+    }
+  },
+
+  parseHTML() {
+    return [{
+      tag: "div.wiki-mermaid-block",
+      getAttrs: (node) => ({ code: node.getAttribute("data-code") || node.textContent }),
+    }]
+  },
+
+  renderHTML({ node }) {
+    return ["div", {
+      class: "wiki-mermaid-block",
+      "data-code": node.attrs.code,
+    }, node.attrs.code]
+  },
+
+  addNodeView() {
+    return ({ node, editor, getPos }) => {
+      const dom = document.createElement("div")
+      dom.className = "wiki-mermaid-block wiki-mermaid-rendered"
+      dom.contentEditable = "false"
+
+      const renderArea = document.createElement("div")
+      renderArea.className = "wiki-mermaid-render-area"
+      dom.appendChild(renderArea)
+
+      renderMermaidSvg(node.attrs.code, renderArea)
+
+      dom.addEventListener("click", (e) => {
+        if (e.target.closest("button")) return
+        dom.dispatchEvent(new CustomEvent("wiki:mermaid-edit", {
+          detail: { code: node.attrs.code, getPos },
+          bubbles: true,
+        }))
+      })
+
+      return {
+        dom,
+        ignoreMutation: () => true,
+        stopEvent: (event) => !!(event.target.closest && event.target.closest("button")),
+        selectNode: () => dom.classList.add("ProseMirror-selectednode"),
+        deselectNode: () => dom.classList.remove("ProseMirror-selectednode"),
+      }
+    }
+  },
+})
+
 // --- Main Controller ---
 
 export default class extends Controller {
@@ -317,6 +399,7 @@ export default class extends Controller {
     "linkModal", "linkText", "linkUrl", "unlinkBtn", "linkBubble",
     "embedModal", "embedCode",
     "mathModal", "mathLatex", "mathPreview",
+    "mermaidModal", "mermaidCode", "mermaidPreview",
     "tableBubble",
     "draftLinkWrap", "draftLink",
   ]
@@ -350,6 +433,7 @@ export default class extends Controller {
         DetailsSummary,
         MathInline,
         MathBlock,
+        MermaidBlock,
         Extension.create({
           name: "wikiShortcuts",
           addKeyboardShortcuts() {
@@ -446,8 +530,16 @@ export default class extends Controller {
       this.mathModalTarget.addEventListener("keydown", this.boundMathModalKeydown)
     }
 
+    if (this.hasMermaidModalTarget) {
+      this.boundMermaidModalKeydown = this.handleMermaidModalKeydown.bind(this)
+      this.mermaidModalTarget.addEventListener("keydown", this.boundMermaidModalKeydown)
+    }
+
     this.boundEmbedEdit = this.handleEmbedEdit.bind(this)
     this.editorTarget.addEventListener("wiki:embed-edit", this.boundEmbedEdit)
+
+    this.boundMermaidEdit = this.handleMermaidEdit.bind(this)
+    this.editorTarget.addEventListener("wiki:mermaid-edit", this.boundMermaidEdit)
 
     if (this.hasTableBubbleTarget) {
       this.tableBubbleTarget.addEventListener("mousedown", (e) => e.preventDefault())
@@ -474,7 +566,11 @@ export default class extends Controller {
     if (this.hasMathModalTarget) {
       this.mathModalTarget?.removeEventListener("keydown", this.boundMathModalKeydown)
     }
+    if (this.hasMermaidModalTarget) {
+      this.mermaidModalTarget?.removeEventListener("keydown", this.boundMermaidModalKeydown)
+    }
     this.editorTarget?.removeEventListener("wiki:embed-edit", this.boundEmbedEdit)
+    this.editorTarget?.removeEventListener("wiki:mermaid-edit", this.boundMermaidEdit)
     if (this.boundFormDraft) this.form?.removeEventListener("input", this.boundFormDraft)
     if (this.draftSaveTimeout) clearTimeout(this.draftSaveTimeout)
   }
@@ -515,6 +611,11 @@ export default class extends Controller {
   insertTable(e) {
     e.preventDefault()
     this.editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()
+  }
+
+  insertDivider(e) {
+    e.preventDefault()
+    this.editor.chain().focus().setHorizontalRule().run()
   }
 
   insertCollapsible(e) {
@@ -792,12 +893,92 @@ export default class extends Controller {
     if (this.hasMathLatexTarget) this.mathLatexTarget.focus()
   }
 
+  // --- Mermaid ---
+
+  openMermaidModal(e) {
+    e?.preventDefault()
+    this.editingMermaidGetPos = null
+    if (this.hasMermaidCodeTarget) this.mermaidCodeTarget.value = ""
+    if (this.hasMermaidPreviewTarget) this.mermaidPreviewTarget.innerHTML = ""
+    if (this.hasMermaidModalTarget) this.mermaidModalTarget.hidden = false
+    if (this.hasMermaidCodeTarget) this.mermaidCodeTarget.focus()
+  }
+
+  closeMermaidModal(e) {
+    e?.preventDefault()
+    if (this.hasMermaidModalTarget) this.mermaidModalTarget.hidden = true
+    this.editingMermaidGetPos = null
+    this.editor.chain().focus().run()
+  }
+
+  handleMermaidEdit(e) {
+    const { code, getPos } = e.detail
+    this.editingMermaidGetPos = getPos
+    if (this.hasMermaidCodeTarget) this.mermaidCodeTarget.value = code
+    this.updateMermaidPreview()
+    if (this.hasMermaidModalTarget) this.mermaidModalTarget.hidden = false
+    if (this.hasMermaidCodeTarget) this.mermaidCodeTarget.focus()
+  }
+
+  updateMermaidPreview() {
+    if (!this.hasMermaidPreviewTarget || !this.hasMermaidCodeTarget) return
+    const code = this.mermaidCodeTarget.value.trim()
+    if (!code) {
+      this.mermaidPreviewTarget.innerHTML = '<span style="color:#999">Preview will appear here</span>'
+      return
+    }
+    if (this.mermaidPreviewTimeout) clearTimeout(this.mermaidPreviewTimeout)
+    this.mermaidPreviewTimeout = setTimeout(() => {
+      renderMermaidSvg(code, this.mermaidPreviewTarget)
+    }, 400)
+  }
+
+  applyMermaid(e) {
+    e?.preventDefault()
+    const code = this.hasMermaidCodeTarget ? this.mermaidCodeTarget.value.trim() : ""
+    if (!code) { this.closeMermaidModal(); return }
+
+    if (this.editingMermaidGetPos) {
+      const pos = this.editingMermaidGetPos()
+      const currentNode = this.editor.state.doc.nodeAt(pos)
+      if (currentNode) {
+        this.editor.chain().focus()
+          .deleteRange({ from: pos, to: pos + currentNode.nodeSize })
+          .insertContentAt(pos, { type: "mermaidBlock", attrs: { code } })
+          .run()
+      }
+    } else {
+      this.editor.chain().focus()
+        .insertContent({ type: "mermaidBlock", attrs: { code } })
+        .run()
+    }
+
+    this.closeMermaidModal()
+  }
+
+  removeMermaid(e) {
+    e?.preventDefault()
+    if (this.editingMermaidGetPos) {
+      const pos = this.editingMermaidGetPos()
+      const currentNode = this.editor.state.doc.nodeAt(pos)
+      if (currentNode) {
+        this.editor.chain().focus().deleteRange({ from: pos, to: pos + currentNode.nodeSize }).run()
+      }
+    }
+    this.closeMermaidModal()
+  }
+
+  handleMermaidModalKeydown(e) {
+    if (e.key === "Escape") { e.preventDefault(); this.closeMermaidModal() }
+  }
+
   // --- Keyboard ---
 
   handleFormKeydown(e) {
     if (e.key !== "Enter") return
     if (!this.linkModalTarget.hidden) return
     if (this.hasMathModalTarget && !this.mathModalTarget.hidden) return
+    if (this.hasMermaidModalTarget && !this.mermaidModalTarget.hidden) return
     if (["INPUT", "SELECT", "TEXTAREA"].includes(e.target.tagName)) e.preventDefault()
   }
 
@@ -863,17 +1044,26 @@ export default class extends Controller {
       },
     })
 
+    service.addRule("mermaidBlock", {
+      filter: (node) => node.nodeName === "DIV" && node.classList && node.classList.contains("wiki-mermaid-block"),
+      replacement: (_content, node) => {
+        const code = node.getAttribute("data-code") || node.textContent
+        return `\n\n\`\`\`mermaid\n${code}\n\`\`\`\n\n`
+      },
+    })
+
+    service.addRule("collapsibleSummary", {
+      filter: "summary",
+      replacement: (content) => `<summary>${content.trim()}</summary>`,
+    })
+
     service.addRule("collapsibleDetails", {
       filter: (node) => node.nodeName === "DETAILS",
-      replacement: (_content, node) => {
-        const summary = node.querySelector("summary")
-        const summaryText = summary ? summary.textContent.trim() : "Details"
-        const bodyHtml = []
-        for (const child of node.children) {
-          if (child.nodeName === "SUMMARY") continue
-          bodyHtml.push(child.outerHTML)
-        }
-        return `\n\n<details>\n<summary>${summaryText}</summary>\n\n${bodyHtml.join("\n")}\n\n</details>\n\n`
+      replacement: (content) => {
+        const match = content.match(/<summary>([\s\S]*?)<\/summary>/)
+        const summaryText = match ? match[1].trim() : "Details"
+        const body = content.replace(/<summary>[\s\S]*?<\/summary>/, "").trim()
+        return `\n\n<details>\n<summary>${summaryText}</summary>\n\n${body}\n\n</details>\n\n`
       },
     })
 

@@ -13,6 +13,16 @@ module WikiMarkdown
       %(<a href="#{link}" target="_blank" rel="noopener noreferrer">#{link}</a>)
     end
 
+    def block_code(code, language)
+      if language.to_s.strip.downcase == "mermaid"
+        escaped_code = ERB::Util.html_escape(code.strip)
+        %(<div class="wiki-mermaid-block" data-code="#{escaped_code}"><pre><code class="language-mermaid">#{escaped_code}</code></pre></div>)
+      else
+        lang_attr = language && !language.empty? ? %( class="language-#{ERB::Util.html_escape(language)}") : ""
+        "<pre><code#{lang_attr}>#{ERB::Util.html_escape(code)}</code></pre>"
+      end
+    end
+
     def table(content)
       "<table class=\"wiki-table\">#{content}</table>"
     end
@@ -44,13 +54,38 @@ module WikiMarkdown
   BLOCK_MATH_RE  = /\$\$(.+?)\$\$/m
   INLINE_MATH_RE = /(?<!\$)\$(?!\$)(.+?)(?<!\$)\$(?!\$)/
 
+  COLLAPSIBLE_OPEN_RE = /<details>\s*<summary>(.*?)<\/summary>/m
+  COLLAPSIBLE_CLOSE_RE = %r{</details>}
+
   def self.render(content)
     content ||= ""
 
     placeholders = {}
     counter = 0
 
-    processed = content.gsub(BLOCK_MATH_RE) do
+    renderer = Renderer.new
+    markdown = Redcarpet::Markdown.new(renderer,
+      fenced_code_blocks: true,
+      tables: true,
+      no_intra_emphasis: true,
+      lax_spacing: true
+    )
+
+    processed = content.gsub(COLLAPSIBLE_OPEN_RE) do
+      summary_md = Regexp.last_match(1).strip
+      summary_html = markdown.render(summary_md).gsub(%r{\A<p>(.*)</p>\s*\z}m, '\1').strip
+      key = "WIKICOLLAPSIBLE#{counter += 1}OPEN"
+      placeholders[key] = %(<details>\n<summary>#{summary_html}</summary>)
+      "\n\n#{key}\n\n"
+    end
+
+    processed = processed.gsub(COLLAPSIBLE_CLOSE_RE) do
+      key = "WIKICOLLAPSIBLE#{counter += 1}CLOSE"
+      placeholders[key] = "</details>"
+      "\n\n#{key}\n\n"
+    end
+
+    processed = processed.gsub(BLOCK_MATH_RE) do
       latex = Regexp.last_match(1).strip
       key = "WIKIMATH#{counter += 1}BLOCK"
       placeholders[key] = %(<div class="wiki-math-block" data-latex="#{ERB::Util.html_escape(latex)}">#{ERB::Util.html_escape(latex)}</div>)
@@ -64,13 +99,6 @@ module WikiMarkdown
       key
     end
 
-    renderer = Renderer.new
-    markdown = Redcarpet::Markdown.new(renderer,
-      fenced_code_blocks: true,
-      tables: true,
-      no_intra_emphasis: true,
-      lax_spacing: true
-    )
     html = markdown.render(processed)
 
     placeholders.each do |key, replacement|

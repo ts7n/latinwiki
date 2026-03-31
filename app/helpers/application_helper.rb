@@ -14,6 +14,18 @@ module ApplicationHelper
     doc.to_html
   end
 
+  def transform_mermaid_for_editor(html)
+    return html if html.blank?
+
+    doc = Nokogiri::HTML5.fragment(html)
+    doc.css("div.wiki-mermaid-block").each do |el|
+      code = el["data-code"].presence || el.text.strip
+      el["data-code"] = code
+      el.inner_html = ERB::Util.html_escape(code)
+    end
+    doc.to_html
+  end
+
   def transform_embeds_for_editor(html)
     return html if html.blank?
 
